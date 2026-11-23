@@ -1,0 +1,27 @@
+{# Panel: volume kendaraan (bar bertumpuk per kelas). Butuh: time_range, volume, vehicle_classes #}
+<section class="card" data-panel="volume_chart" data-refresh="live" data-depends="camera range" aria-labelledby="volume-title">
+  <div class="card__head">
+    <div>
+      <h3 class="card__title" id="volume-title">Volume kendaraan</h3>
+      <p class="card__subtitle">{{ time_range.unit }} · kedua arah</p>
+    </div>
+    {% include "dashboard/components/legend.html" %}
+  </div>
+
+  <div class="chart" role="img" aria-label="Grafik batang bertumpuk volume kendaraan per kelas, {{ time_range.label }} terakhir, skala maksimum {{ volume.y_max }}">
+    <div class="chart__y"><span>{{ volume.y_max }}</span><span>{{ volume.y_mid }}</span><span>0</span></div>
+    <div class="chart__plot">
+      <div class="chart__grid chart__grid--top"></div>
+      <div class="chart__grid chart__grid--mid"></div>
+      <div class="chart__grid chart__grid--base"></div>
+      <div class="chart__bars">
+        {% for bar in volume.bars %}
+        <div class="chart__bar stack" style="height:{{ bar.h }}%" title="{{ bar.title }}">
+          {% for seg in bar.segments %}<div class="stack__seg c-{{ seg.key }}" style="height:{{ seg.pct }}%"></div>{% endfor %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% include "dashboard/components/axis_x.html" %}
+</section>

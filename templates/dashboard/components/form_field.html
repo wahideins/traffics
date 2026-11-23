@@ -1,0 +1,12 @@
+{# Satu isian formulir. Parameter: name, label, type, value, hint, placeholder, mono, required, autocomplete, inputmode #}
+<div class="form-field">
+  <label class="form-field__label" for="cam-{{ name }}">{{ label }}{% if required %}<span class="form-field__req" aria-hidden="true"> *</span>{% endif %}</label>
+  <input class="input{% if mono %} input--mono{% endif %}" id="cam-{{ name }}" name="{{ name }}"
+         type="{{ type|default:'text' }}" value="{{ value|default:'' }}"
+         {% if placeholder %}placeholder="{{ placeholder }}"{% endif %}
+         {% if required %}required{% endif %}
+         {% if inputmode %}inputmode="{{ inputmode }}"{% endif %}
+         autocomplete="{{ autocomplete|default:'off' }}" spellcheck="false"
+         aria-describedby="cam-{{ name }}-msg">
+  <p class="form-field__msg" id="cam-{{ name }}-msg">{% if hint %}<span class="form-field__hint">{{ hint }}</span>{% endif %}<span class="form-field__error" data-error-for="{{ name }}" role="alert"></span></p>
+</div>

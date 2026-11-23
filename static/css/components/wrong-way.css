@@ -1,0 +1,92 @@
+/* Panel deteksi lawan arah. */
+.lane-mock {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 120px;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--road);
+}
+
+.lane-mock__row {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 0 12px;
+  color: var(--video-text);
+}
+
+.lane-mock__row--top {
+  border-bottom: 3px double var(--lane-line);
+}
+
+.lane-mock__box {
+  position: absolute;
+  left: 58%;
+  top: 12px;
+  width: 44px;
+  height: 22px;
+  border: 2px solid var(--alert);
+  border-radius: 3px;
+  background: rgba(255, 107, 107, 0.25);
+}
+
+.lane-mock__tag {
+  position: absolute;
+  left: 58%;
+  top: 36px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--alert);
+  color: #0a1426;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.big-count {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.big-count__value {
+  font-family: var(--font-display);
+  font-size: 36px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.big-count--alert .big-count__value {
+  color: var(--macet-fg);
+}
+
+.big-count__label {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.last-event {
+  padding: 12px;
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+}
+
+.last-event__label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.last-event__time {
+  margin-top: 2px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.last-event__detail {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text-2);
+}

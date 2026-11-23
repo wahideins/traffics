@@ -1,0 +1,46 @@
+{# Panel: perhitungan kendaraan per arah dan kelas. Butuh: camera, counts #}
+<section class="card" data-panel="vehicle_counts" data-refresh="live" data-depends="camera" aria-labelledby="counts-title">
+  <div>
+    <h3 class="card__title" id="counts-title">Perhitungan kendaraan</h3>
+    <p class="card__subtitle">Per arah dan kelas kendaraan · hari ini</p>
+  </div>
+
+  <div class="table-scroll">
+    <table class="data-table data-table--counts">
+      <thead>
+        <tr>
+          <th scope="col">Kelas</th>
+          <th scope="col" class="num">A · {{ camera.dir_a }} →</th>
+          <th scope="col" class="num">B · {{ camera.dir_b }} ←</th>
+          <th scope="col" class="num">Total</th>
+          <th scope="col">Porsi</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in counts.rows %}
+        <tr>
+          <th scope="row"><span class="cell-class"><span class="swatch c-{{ row.key }}"></span>{{ row.name }}</span></th>
+          <td class="num">{{ row.a }}</td>
+          <td class="num">{{ row.b }}</td>
+          <td class="num num--strong">{{ row.total }}</td>
+          <td>
+            <div class="share c-{{ row.key }}">
+              <span class="share__track"><span class="share__fill" style="width:{{ row.pct }}%"></span></span>
+              <span class="share__pct">{{ row.pct }}%</span>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr>
+          <th scope="row">Total</th>
+          <td class="num">{{ counts.sum_a }}</td>
+          <td class="num">{{ counts.sum_b }}</td>
+          <td class="num">{{ counts.sum_all }}</td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</section>

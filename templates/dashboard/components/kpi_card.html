@@ -1,0 +1,9 @@
+{# Parameter: label, value, unit (opsional), note, icon, tone (opsional: warn | danger) #}
+<article class="card kpi{% if tone %} kpi--{{ tone }}{% endif %}">
+  <div class="kpi__head">
+    <span class="kpi__icon">{% include "includes/icon.html" with name=icon size=20 %}</span>
+    {{ label }}
+  </div>
+  <div class="kpi__value">{{ value }}{% if unit %} <span class="kpi__unit">{{ unit }}</span>{% endif %}</div>
+  <div class="kpi__note">{{ note }}</div>
+</article>

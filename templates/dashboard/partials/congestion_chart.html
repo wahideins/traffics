@@ -1,0 +1,41 @@
+{# Panel: analisis kongesti (kepadatan per interval). Butuh: time_range, congestion #}
+<section class="card" data-panel="congestion_chart" data-refresh="live" data-depends="camera range" aria-labelledby="cong-title">
+  <div class="card__head">
+    <div>
+      <h3 class="card__title" id="cong-title">Analisis kongesti</h3>
+      <p class="card__subtitle">Kepadatan jalan per interval · {{ time_range.label }} terakhir</p>
+    </div>
+    <dl class="summary-stats">
+      <div class="summary-stat">
+        <dt class="summary-stat__label">Puncak kepadatan</dt>
+        <dd class="summary-stat__value">{{ congestion.peak }}%</dd>
+      </div>
+      <div class="summary-stat">
+        <dt class="summary-stat__label">Waktu padat atau macet</dt>
+        <dd class="summary-stat__value">{{ congestion.share }}%</dd>
+      </div>
+    </dl>
+  </div>
+
+  <div class="chart chart--short" role="img" aria-label="Grafik batang kepadatan jalan per interval, puncak {{ congestion.peak }} persen, {{ congestion.share }} persen waktu padat atau macet">
+    <div class="chart__y"><span>100%</span><span>50%</span><span>0%</span></div>
+    <div class="chart__plot">
+      <div class="chart__grid chart__grid--top"></div>
+      <div class="chart__grid chart__grid--base"></div>
+      <div class="chart__bars chart__bars--tight">
+        {% for bar in congestion.bars %}
+        <div class="chart__bar chart__bar--{{ bar.level }}" style="height:{{ bar.h }}%" title="{{ bar.title }}"></div>
+        {% endfor %}
+      </div>
+      <div class="chart__threshold chart__threshold--macet"><span class="chart__threshold-label">Macet 75%</span></div>
+      <div class="chart__threshold chart__threshold--padat"><span class="chart__threshold-label">Padat 50%</span></div>
+    </div>
+  </div>
+  {% include "dashboard/components/axis_x.html" %}
+
+  <ul class="legend">
+    <li class="legend__item"><span class="swatch swatch--lancar"></span>Lancar</li>
+    <li class="legend__item"><span class="swatch swatch--padat"></span>Padat</li>
+    <li class="legend__item"><span class="swatch swatch--macet"></span>Macet</li>
+  </ul>
+</section>
