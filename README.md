@@ -1,4 +1,4 @@
-# TrafficSense — Dashboard analitik lalu lintas CCTV (front-end)
+# TrafficSense — Dashboard analitik lalu lintas CCTV 
 
 Dashboard memakai Django. Status tahap ini:
 
