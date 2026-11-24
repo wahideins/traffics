@@ -1,0 +1,6 @@
+{# Panel: status deteksi/kalibrasi di bawah video (kamera RTSP). Diperbarui berkala. #}
+<div class="feed__notices" data-panel="detection_notice" data-refresh="live" data-depends="camera">
+  {% if detection and detection.notice %}
+  <p class="feed__notice" role="status">{{ detection.notice }}</p>
+  {% endif %}
+</div>

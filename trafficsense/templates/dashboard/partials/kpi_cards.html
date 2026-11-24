@@ -1,0 +1,8 @@
+{# Panel: kartu ringkasan (KPI). Butuh: kpi #}
+<div class="kpi-grid" data-panel="kpi_cards" data-refresh="live" data-depends="camera">
+  {% include "dashboard/components/kpi_card.html" with label="Kendaraan terhitung" value=kpi.total unit="" note="Sejak pukul 00:00 hari ini" icon="vehicle" tone="" %}
+  {% include "dashboard/components/kpi_card.html" with label="Arus saat ini" value=kpi.flow unit="kend/mnt" note=kpi.flow_note icon="flow" tone="" %}
+  {% include "dashboard/components/kpi_card.html" with label="Kecepatan rata-rata" value=kpi.avg unit="km/j" note=kpi.avg_note icon="gauge" tone="" %}
+  {% include "dashboard/components/kpi_card.html" with label="Melebihi batas" value=kpi.speeding unit="" note=kpi.speeding_note icon="warning" tone="warn" %}
+  {% include "dashboard/components/kpi_card.html" with label="Lawan arah" value=kpi.wrong unit="" note="Kejadian hari ini" icon="wrong-way" tone=kpi.wrong_tone %}
+</div>

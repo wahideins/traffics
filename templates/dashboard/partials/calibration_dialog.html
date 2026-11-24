@@ -1,0 +1,61 @@
+{# Dialog kalibrasi kamera RTSP. Dikontrol oleh static/js/modules/calibration.js #}
+<dialog class="dialog dialog--wide" id="calibration-dialog" aria-labelledby="calibration-title">
+  <div class="dialog__form">
+    <header class="dialog__head">
+      <div>
+        <h2 class="card__title" id="calibration-title">Kalibrasi kamera</h2>
+        <p class="card__subtitle" data-cal-camera></p>
+      </div>
+      <button type="button" class="dialog__close" data-action="close-calibration" aria-label="Tutup">×</button>
+    </header>
+
+    <div class="dialog__body">
+      <div class="cal-steps" role="group" aria-label="Langkah kalibrasi">
+        <button type="button" class="cal-step" data-cal-tool="axis">
+          <strong>1. Arah A</strong><span>Klik titik awal lalu akhir searah lalu lintas Arah A</span>
+        </button>
+        <button type="button" class="cal-step" data-cal-tool="median">
+          <strong>2. Median</strong><span>Opsional: klik satu titik di pemisah jalur (untuk lawan arah)</span>
+        </button>
+        <button type="button" class="cal-step" data-cal-tool="ref">
+          <strong>3. Jarak referensi</strong><span>Klik dua titik di jalan yang jaraknya Anda ketahui</span>
+        </button>
+      </div>
+
+      <div class="cal-stage" data-cal-stage>
+        <img class="cal-stage__img" data-cal-img alt="Tangkapan layar kamera untuk kalibrasi" draggable="false">
+        <svg class="cal-stage__svg" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true">
+          <line data-cal-line="axis" class="cal-line cal-line--axis"/>
+          <line data-cal-line="count" class="cal-line cal-line--count"/>
+          <line data-cal-line="ref" class="cal-line cal-line--ref"/>
+        </svg>
+        <div data-cal-markers></div>
+        <p class="cal-stage__msg" data-cal-msg role="status"></p>
+      </div>
+
+      <div class="form-grid">
+        <div class="form-field">
+          <label class="form-field__label" for="cal-ref-m">Jarak asli dua titik referensi (meter)</label>
+          <input class="input" id="cal-ref-m" type="text" inputmode="decimal" autocomplete="off" placeholder="Contoh: 12,5" data-cal-input="ref_m">
+          <p class="form-field__msg"><span class="form-field__hint">Marka garis putus-putus biasanya 3 m dengan jeda 5 m; lebar lajur 3,5 m.</span></p>
+        </div>
+        <div class="form-field">
+          <label class="form-field__label" for="cal-line-pos">Posisi garis hitung: <output data-cal-linepos-out>50</output>%</label>
+          <input id="cal-line-pos" type="range" min="10" max="90" step="1" value="50" data-cal-input="line_pos">
+          <p class="form-field__msg"><span class="form-field__hint">Geser ke tempat kendaraan terlihat jelas dan tidak saling menutup.</span></p>
+        </div>
+      </div>
+
+      <label class="cal-check"><input type="checkbox" data-cal-input="one_way"> Jalan satu arah (kendaraan ke Arah B dianggap lawan arah)</label>
+
+      <p class="form-status" data-cal-status role="status" aria-live="polite"></p>
+    </div>
+
+    <footer class="dialog__foot">
+      <button type="button" class="btn btn--ghost" data-action="reset-calibration">Ulangi</button>
+      <span class="dialog__spacer"></span>
+      <button type="button" class="btn btn--ghost" data-action="close-calibration">Batal</button>
+      <button type="button" class="btn btn--primary" data-action="save-calibration">Simpan kalibrasi</button>
+    </footer>
+  </div>
+</dialog>

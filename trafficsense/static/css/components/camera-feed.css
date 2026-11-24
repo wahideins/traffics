@@ -1,0 +1,257 @@
+/* Pantauan langsung: pratinjau kamera, kotak deteksi, HUD, dan formulir sumber RTSP. */
+.feed__stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: var(--video-bg);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+/* --- Pemandangan jalan --- */
+.feed__scene {
+  position: absolute;
+  inset: 0;
+}
+
+.feed__road {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 20%;
+  height: 60%;
+  background: var(--road);
+}
+
+.feed__edge {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.feed__edge--top { top: 20%; }
+.feed__edge--bottom { top: 80%; }
+
+.feed__median {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(50% - 3px);
+  height: 6px;
+  border-top: 2px solid var(--lane-line);
+  border-bottom: 2px solid var(--lane-line);
+}
+
+.feed__lane-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 2px dashed rgba(255, 255, 255, 0.28);
+}
+
+.feed__lane-line--upper { top: 35%; }
+.feed__lane-line--lower { top: 65%; }
+
+.feed__dir,
+.feed__count-label {
+  position: absolute;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--hud-bg);
+  color: var(--video-text);
+  font-size: 11px;
+}
+
+.feed__dir { left: 12px; }
+.feed__dir--b { top: calc(20% + 8px); }
+.feed__dir--a { top: calc(80% - 28px); }
+
+.feed__count-line {
+  position: absolute;
+  left: 50%;
+  top: 14%;
+  bottom: 14%;
+  border-left: 2px dashed #7fb2ff;
+}
+
+.feed__count-label {
+  left: calc(50% + 8px);
+  bottom: calc(14% + 4px);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* --- Kendaraan (digerakkan CSS) --- */
+.feed__vehicles {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.vehicle {
+  --v: var(--class-color);
+  --v-fg: var(--class-fg);
+  position: absolute;
+  left: 50%;
+  box-sizing: border-box;
+  border: 2px solid var(--v);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--v) 18%, transparent);
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+.vehicle--right { animation-name: drive-right; }
+.vehicle--left { animation-name: drive-left; }
+
+.vehicle--speeder { --v: var(--speeder); --v-fg: #0a1426; }
+.vehicle--wrong { --v: var(--alert); --v-fg: #0a1426; }
+
+.vehicle__label {
+  position: absolute;
+  left: -2px;
+  bottom: 100%;
+  margin-bottom: 2px;
+  padding: 0 5px;
+  border-radius: 3px;
+  background: var(--v);
+  color: var(--v-fg);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 14px;
+  white-space: nowrap;
+}
+
+@keyframes drive-right {
+  from { left: -16%; }
+  to { left: 104%; }
+}
+
+@keyframes drive-left {
+  from { left: 104%; }
+  to { left: -16%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vehicle {
+    animation: none;
+    left: var(--rest, 40%);
+  }
+}
+
+/* --- HUD --- */
+.feed__hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.hud {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  background: var(--hud-bg);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.hud--status { left: 12px; top: 12px; }
+.hud--clock { right: 12px; top: 12px; font-weight: 500; }
+.hud--counts { left: 12px; bottom: 12px; }
+
+.hud__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--alert);
+}
+
+.hud__muted {
+  font-weight: 500;
+  color: var(--video-text);
+}
+
+.feed__alert {
+  position: absolute;
+  left: 50%;
+  top: 48px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  background: var(--alert);
+  color: #0a1426;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.feed__overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 20, 38, 0.82);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* --- Sumber RTSP --- */
+.feed__source {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.field {
+  flex: 1 1 320px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.input {
+  width: 100%;
+  min-width: 0;
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-input);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text);
+}
+
+.feed__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+@media (max-width: 640px) {
+  .feed__dir,
+  .feed__count-label,
+  .hud__muted {
+    display: none;
+  }
+}

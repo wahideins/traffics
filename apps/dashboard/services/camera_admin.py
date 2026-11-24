@@ -2,6 +2,9 @@
 
 View hanya meneruskan data ke sini, jadi logikanya bisa diuji tanpa Django.
 """
+from .. import runtime
+from ..detection.calibration import parse_calibration
+from ..detection.manager import get_detection_manager
 from ..streaming import get_manager
 from ..streaming.probe import probe_stream
 from .camera_form import validate_camera_input
@@ -30,6 +33,11 @@ def create_camera(data):
         speed_limit=cleaned.speed_limit,
         reserved_codes=demo_codes(),
     )
+    try:
+        if get_detection_manager().enabled:
+            runtime.ensure_camera(camera)  # mulai membaca (dan menghitung) segera
+    except Exception:  # noqa: BLE001 - kamera tersimpan walau stream gagal dimulai
+        pass
     return camera, {}
 
 
@@ -37,7 +45,7 @@ def delete_camera(code):
     """Hapus kamera tambahan dan hentikan pembacanya. Kamera demo tidak bisa dihapus."""
     if get_live_camera(code) is None:
         return False
-    get_manager().stop(code)
+    runtime.stop_camera(code, delete_state=True)
     return get_store().delete(code)
 
 
@@ -48,5 +56,20 @@ def reconnect_camera(code):
         return False
     manager = get_manager()
     if not manager.reconnect(code):
-        manager.ensure(code, camera.source_url)
+        runtime.ensure_camera(camera)
     return True
+
+
+def save_calibration(code, data):
+    """Validasi dan simpan kalibrasi. Kembalikan (True, {}) atau (False, errors); (None, {}) bila kamera tak ada."""
+    camera = get_live_camera(code)
+    if camera is None:
+        return None, {}
+    calibration, errors = parse_calibration(data)
+    if errors:
+        return False, errors
+    updated = get_store().update_calibration(code, calibration.to_dict())
+    if updated is None:
+        return None, {}
+    get_detection_manager().apply_calibration(updated)
+    return True, {}

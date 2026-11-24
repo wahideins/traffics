@@ -1,0 +1,121 @@
+/* Grafik batang: sumbu, garis bantu, bar bertumpuk (volume) dan bar status (kongesti). */
+.chart {
+  --chart-h: 200px;
+  display: flex;
+  gap: 8px;
+}
+
+.chart--short {
+  --chart-h: 180px;
+}
+
+.chart__y {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: space-between;
+  width: 40px;
+  height: var(--chart-h);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.chart__plot {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: var(--chart-h);
+}
+
+.chart__grid {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px solid var(--grid-line);
+}
+
+.chart__grid--top { top: 0; }
+.chart__grid--mid { top: 50%; }
+.chart__grid--base { bottom: 0; border-top-color: var(--border-strong); }
+
+.chart__bars {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.chart__bars--tight {
+  gap: 3px;
+}
+
+.chart__bar {
+  flex: 1 1 0;
+  min-width: 0;
+  border-radius: 3px 3px 0 0;
+}
+
+.chart__bar--lancar { background: var(--lancar); }
+.chart__bar--padat { background: var(--padat); }
+.chart__bar--macet { background: var(--macet); }
+
+/* Bar bertumpuk per kelas: urutan dari dasar ke atas */
+.stack {
+  display: flex;
+  flex-direction: column-reverse;
+  overflow: hidden;
+}
+
+.stack__seg {
+  background: var(--class-color);
+}
+
+/* Ambang kongesti */
+.chart__threshold {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 2px dashed var(--text);
+}
+
+.chart__threshold--macet { top: 25%; }
+.chart__threshold--padat { top: 50%; border-top-color: var(--text-muted); }
+
+.chart__threshold-label {
+  position: absolute;
+  right: 0;
+  top: 0;
+  transform: translateY(-100%);
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--surface);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.axis-x {
+  display: flex;
+  justify-content: space-between;
+  padding-left: 48px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.summary-stats {
+  display: flex;
+  gap: 20px;
+}
+
+.summary-stat__label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.summary-stat__value {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+}

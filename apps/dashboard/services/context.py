@@ -1,9 +1,12 @@
 """Perakit konteks template: satu fungsi yang dipakai halaman penuh dan semua panel.
 
-Kamera demo memakai data simulasi. Kamera RTSP tambahan belum punya modul
-deteksi, jadi analitiknya kosong (bukan angka palsu); yang nyata hanya video
-dan status koneksinya.
+Kamera demo memakai data simulasi. Kamera RTSP tambahan memakai analitik nyata
+dari modul deteksi; sebelum ada data (model belum diatur/belum ada frame)
+analitiknya kosong ("—"), bukan angka palsu.
 """
+import json
+
+from ..detection.manager import get_detection_manager
 from ..streaming import get_manager
 from .constants import (
     FLOW_LEVELS,
@@ -14,6 +17,7 @@ from .constants import (
 )
 from .events import build_event_filters, build_events, build_wrong_way
 from .formatting import css_number, format_decimal
+from .live_analytics import build_live_analytics
 from .metrics import (
     clamp,
     classify_flow,
@@ -46,7 +50,6 @@ def build_dashboard_context(params, now) -> dict:
     context = {
         "camera": camera,
         "cameras": _camera_tabs(camera, tick),
-        "analytics": camera.has_analytics,
         "stream": _stream_view(camera),
         "vehicle_classes": VEHICLE_CLASSES,
         "time_range": {
@@ -64,8 +67,21 @@ def build_dashboard_context(params, now) -> dict:
     }
 
     if camera.has_analytics:
+        context["analytics"] = True
+        context["detection"] = None
         context.update(_simulated_analytics(camera, params, now, tick))
+        return context
+
+    # Kamera RTSP: analitik nyata bila deteksi sudah menghasilkan data, selain itu kosong + alasan.
+    detection = get_detection_manager()
+    snapshot = detection.snapshot(camera.id)
+    context["detection"] = _detection_view(camera, detection.status(camera.id), snapshot)
+    if snapshot is not None and snapshot["ready"]:
+        context["analytics"] = True
+        series = detection.series(camera.id, cfg["points"], cfg["step"])
+        context.update(build_live_analytics(camera, snapshot, series, params.range_key, params.event_type))
     else:
+        context["analytics"] = False
         context.update(_empty_analytics(camera, params))
     return context
 
@@ -124,13 +140,13 @@ def _simulated_analytics(camera, params, now, tick):
 
 # --- kamera RTSP tambahan (belum ada deteksi) ------------------------------------
 def _empty_analytics(camera, params):
-    waiting = "Menunggu modul deteksi"
+    waiting = "Menunggu data deteksi"
     return {
         "flow": {
             "key": "unknown",
             "label": "Belum ada data",
             "los": NO_DATA,
-            "desc": "Analitik aktif setelah modul deteksi tersambung ke kamera ini.",
+            "desc": "Analitik muncul setelah deteksi berjalan untuk kamera ini.",
             "marker": "0",
             "speed": NO_DATA,
             "density": NO_DATA,
@@ -189,10 +205,21 @@ def _empty_analytics(camera, params):
 
 
 # --- umum --------------------------------------------------------------------
+def _live_level(cam):
+    """Level arus kamera RTSP dari deteksi, atau None bila belum ada data."""
+    snapshot = get_detection_manager().snapshot(cam.id)
+    if snapshot is not None and snapshot["ready"]:
+        return snapshot["level"]
+    return None
+
+
 def _camera_tabs(active_camera, tick):
     tabs = []
     for cam in list_cameras():
-        if cam.has_analytics:
+        live_level = None if cam.has_analytics else _live_level(cam)
+        if live_level:
+            level_key, level_label = live_level, FLOW_LEVELS[live_level]["label"]
+        elif cam.has_analytics:
             cam_live = live_metrics(cam, tick)
             level_key = classify_flow(cam_live.avg_speed, cam_live.density, cam.speed_limit)
             level_label = FLOW_LEVELS[level_key]["label"]
@@ -222,4 +249,39 @@ def _stream_view(camera):
         "message": status.message if status and state != "live" else "",
         "resolution": f"{status.width}×{status.height}" if status and status.width else "",
         "fps": f"{status.fps:.0f}" if status and status.fps else "",
+    }
+
+
+def _detection_view(camera, status, snapshot):
+    """Ringkasan status deteksi untuk kamera RTSP (pesan di bawah video)."""
+    state = status.state
+    calibrated = bool(snapshot and snapshot["configured"])
+    ready = bool(snapshot and snapshot["ready"])
+    speed_ready = bool(snapshot and snapshot["speed_ready"])
+    wrong_ready = bool(snapshot and snapshot["can_wrong_way"])
+
+    if state == "unavailable":
+        notice = f"Deteksi belum aktif. {status.message}"
+    elif state == "error":
+        notice = status.message or "Deteksi bermasalah."
+    elif state == "loading" or not ready:
+        notice = "Memuat model deteksi dan menunggu frame pertama…"
+    elif not calibrated:
+        notice = "Kalibrasi belum diatur: Arah A dianggap kiri ke kanan; kecepatan dan lawan arah nonaktif."
+    elif not speed_ready or not wrong_ready:
+        missing = []
+        if not speed_ready:
+            missing.append("kecepatan (jarak referensi)")
+        if not wrong_ready:
+            missing.append("lawan arah (median atau jalan satu arah)")
+        notice = "Belum aktif: " + " dan ".join(missing) + "."
+    else:
+        notice = ""
+    return {
+        "state": state,
+        "notice": notice,
+        "calibration_json": json.dumps(camera.calibration, separators=(",", ":")) if camera.calibration else "",
+        "calibrated": calibrated,
+        "infer_ms": round(status.infer_ms),
+        "fps": f"{status.fps:.0f}" if status.fps else "",
     }

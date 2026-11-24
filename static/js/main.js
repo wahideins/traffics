@@ -1,5 +1,6 @@
 // Titik masuk front-end dashboard.
 import { startClock } from "./modules/clock.js";
+import { initCalibration } from "./modules/calibration.js";
 import { initCameraAdmin } from "./modules/camera-admin.js";
 import { initConnection, showConnecting } from "./modules/connection.js";
 import { initControls } from "./modules/controls.js";
@@ -14,6 +15,7 @@ subscribe(async (_state, changedKeys) => {
 
 initControls();
 initCameraAdmin();
+initCalibration();
 initConnection();
 startClock();
 startPolling();

@@ -2,10 +2,13 @@
 
 Django hanya lapisan tipis; logikanya ada di services/camera_admin.py dan streaming/.
 """
+import json
+
 from django.http import Http404, HttpResponse, JsonResponse, StreamingHttpResponse
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET, require_POST
 
+from .. import runtime
 from ..services import camera_admin
 from ..services.registry import get_live_camera
 from ..streaming import get_manager
@@ -24,7 +27,7 @@ def _live_camera_or_404(code):
 def stream(request, code):
     """Video langsung (MJPEG) untuk <img>. Pembaca RTSP dimulai saat ada yang menonton."""
     camera = _live_camera_or_404(code)
-    reader = get_manager().ensure(camera.id, camera.source_url)
+    reader = runtime.ensure_camera(camera)
     response = StreamingHttpResponse(mjpeg_stream(reader), content_type=CONTENT_TYPE)
     response["Cache-Control"] = "no-store"
     response["X-Accel-Buffering"] = "no"  # cegah proxy (nginx) menahan frame
@@ -68,4 +71,19 @@ def reconnect(request, code):
 def delete(request, code):
     if not camera_admin.delete_camera(code):
         raise Http404("Kamera RTSP tidak ditemukan")
+    return JsonResponse({"ok": True})
+
+
+@require_POST
+def calibration(request, code):
+    """Simpan kalibrasi (JSON): arah, garis hitung, median, skala."""
+    try:
+        data = json.loads(request.body or b"{}")
+    except ValueError:
+        return JsonResponse({"ok": False, "errors": {"axis": "Data tidak valid."}}, status=400)
+    ok, errors = camera_admin.save_calibration(code, data)
+    if ok is None:
+        raise Http404("Kamera RTSP tidak ditemukan")
+    if not ok:
+        return JsonResponse({"ok": False, "errors": errors}, status=400)
     return JsonResponse({"ok": True})

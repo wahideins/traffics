@@ -12,3 +12,14 @@ class DashboardConfig(AppConfig):
         from .services import registry
 
         registry.configure(settings.CAMERA_STORE_PATH)
+
+        # Kamera berdeteksi dihidupkan sejak server berjalan agar penghitungan tak bergantung penonton.
+        # `runserver` memakai proses induk + proses anak (reloader): hanya anak (RUN_MAIN) yang menyalakan.
+        import os
+        import sys
+
+        if len(sys.argv) > 1 and sys.argv[1] == "runserver":
+            if os.environ.get("RUN_MAIN") == "true" or "--noreload" in sys.argv:
+                from . import runtime
+
+                runtime.start_all()

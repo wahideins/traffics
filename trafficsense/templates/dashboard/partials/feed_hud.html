@@ -1,0 +1,15 @@
+{# Panel: HUD di atas pratinjau (status, jam, hitungan, peringatan). Diperbarui berkala. #}
+<div class="feed__hud" data-panel="feed_hud" data-refresh="live" data-depends="camera">
+  <div class="hud hud--status">
+    <span class="hud__dot"></span>LIVE
+    <span class="hud__muted">{{ camera.id }} · 25 fps · 1080p</span>
+  </div>
+  <!-- <div class="hud hud--clock" data-clock>{% now "H:i:s" %}</div> -->
+  <div class="hud hud--counts">A → {{ hud.a }} &nbsp;·&nbsp; B ← {{ hud.b }}</div>
+  {% if alert %}
+  <div class="feed__alert" role="status">
+    {% include "includes/icon.html" with name="warning" size=16 %}
+    {{ alert }}
+  </div>
+  {% endif %}
+</div>

@@ -20,6 +20,7 @@ PANEL_TEMPLATES = {
     "camera_tabs": _P + "camera_tabs.html",
     "camera_feed": _P + "camera_feed.html",
     "feed_hud": _P + "feed_hud.html",
+    "detection_notice": _P + "detection_notice.html",
     "flow_status": _P + "flow_status.html",
     "kpi_cards": _P + "kpi_cards.html",
     "range_toggle": _P + "range_toggle.html",

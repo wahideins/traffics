@@ -13,7 +13,7 @@ import os
 import re
 import tempfile
 import threading
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -27,7 +27,7 @@ _SHORT_MAX = 22
 
 @dataclass(frozen=True)
 class LiveCamera:
-    """Kamera RTSP tambahan. Belum punya analitik (menunggu modul deteksi)."""
+    """Kamera RTSP tambahan. Analitik hanya ada bila modul deteksi berjalan untuk kamera ini."""
 
     id: str
     name: str
@@ -37,6 +37,8 @@ class LiveCamera:
     dir_a: str
     dir_b: str
     created_at: str
+    # Kalibrasi arah/garis hitung/skala (lihat detection/calibration.py); kosong = belum diatur.
+    calibration: dict = field(default_factory=dict, compare=False, hash=False)
 
     source = "rtsp"
     has_analytics = False
@@ -82,6 +84,17 @@ class CameraStore:
             )
             self._write(cameras + [camera])
             return camera
+
+    def update_calibration(self, code, calibration):
+        """Simpan kalibrasi (dict yang sudah divalidasi). Kembalikan kamera baru, atau None bila tak ada."""
+        with self._lock:
+            cameras = list(self._load())
+            for i, camera in enumerate(cameras):
+                if camera.id == code:
+                    cameras[i] = replace(camera, calibration=dict(calibration))
+                    self._write(cameras)
+                    return cameras[i]
+            return None
 
     def delete(self, code):
         with self._lock:
@@ -131,6 +144,7 @@ class CameraStore:
                     "dir_a": c.dir_a,
                     "dir_b": c.dir_b,
                     "created_at": c.created_at,
+                    "calibration": c.calibration,
                 }
                 for c in cameras
             ],

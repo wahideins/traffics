@@ -19,12 +19,16 @@ function csrfToken() {
 }
 
 // POST ke endpoint JSON. Tidak melempar untuk galat HTTP; hasilnya {ok, status, data}.
-export async function postForm(url, formData = new FormData()) {
+export async function postForm(url, formData = new FormData(), { json = false } = {}) {
   try {
     const response = await fetch(url, {
       method: "POST",
-      body: formData,
-      headers: { "X-CSRFToken": csrfToken(), Accept: "application/json" },
+      body: json ? JSON.stringify(formData) : formData,
+      headers: {
+        "X-CSRFToken": csrfToken(),
+        Accept: "application/json",
+        ...(json ? { "Content-Type": "application/json" } : {}),
+      },
       credentials: "same-origin",
     });
     let data = {};

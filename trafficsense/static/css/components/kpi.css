@@ -1,0 +1,64 @@
+/* Kartu ringkasan (KPI). */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 16px;
+}
+
+.kpi {
+  gap: 10px;
+  padding: 16px;
+}
+
+.kpi__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.kpi__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.kpi__value {
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.kpi__unit {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.kpi__note {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.kpi--warn .kpi__icon {
+  background: var(--padat-bg);
+  color: var(--padat-fg);
+}
+
+.kpi--danger .kpi__icon {
+  background: var(--macet-bg);
+  color: var(--macet-fg);
+}
+
+.kpi--danger .kpi__value {
+  color: var(--macet-fg);
+}

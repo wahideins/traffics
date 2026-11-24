@@ -15,5 +15,6 @@ urlpatterns = [
     path("cameras/<slug:code>/stream.mjpg", cameras.stream, name="camera_stream"),
     path("cameras/<slug:code>/snapshot.jpg", cameras.snapshot, name="camera_snapshot"),
     path("cameras/<slug:code>/reconnect/", cameras.reconnect, name="camera_reconnect"),
+    path("cameras/<slug:code>/calibration/", cameras.calibration, name="camera_calibration"),
     path("cameras/<slug:code>/delete/", cameras.delete, name="camera_delete"),
 ]

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block body_attrs %}data-initial-camera="{{ camera.id }}" data-initial-range="{{ time_range.key }}" data-initial-event-type="{{ event_type }}" data-refresh-ms="{{ refresh_ms }}" data-panel-url="{% url 'dashboard:panel' name='__name__' %}"{% endblock %}
+
+{% block content %}
+<main class="page">
+  {% include "dashboard/partials/header.html" %}
+
+  {# Baris 1: pantauan kamera + status arus #}
+  <div class="row">
+    <div class="col col--feed">{% include "dashboard/partials/camera_feed.html" %}</div>
+    <div class="col col--status">{% include "dashboard/partials/flow_status.html" %}</div>
+  </div>
+
+  {# Ringkasan #}
+  {% include "dashboard/partials/kpi_cards.html" %}
+
+  {# Analitik #}
+  <div class="section-head">
+    <h2 class="section-title">Analitik</h2>
+    {% include "dashboard/partials/range_toggle.html" %}
+  </div>
+
+  <div class="row">
+    <div class="col col--half">{% include "dashboard/partials/vehicle_counts.html" %}</div>
+    <div class="col col--half">{% include "dashboard/partials/volume_chart.html" %}</div>
+  </div>
+
+  <div class="row">
+    <div class="col col--wide">{% include "dashboard/partials/congestion_chart.html" %}</div>
+    <div class="col col--mid">{% include "dashboard/partials/speed_chart.html" %}</div>
+    <div class="col col--narrow">{% include "dashboard/partials/wrong_way.html" %}</div>
+  </div>
+
+  <div class="row">
+    <div class="col col--full">{% include "dashboard/partials/events_log.html" %}</div>
+  </div>
+
+  <p class="footnote">Mode demo: seluruh angka pada halaman ini adalah data simulasi untuk keperluan tampilan. Aliran RTSP, model deteksi, dan penyimpanan kejadian akan disambungkan pada tahap berikutnya.</p>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="{% static 'js/main.js' %}"></script>
+{% endblock %}

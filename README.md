@@ -4,9 +4,9 @@ Dashboard memakai Django. Status tahap ini:
 
 - **Nyata:** menambah/menghapus kamera RTSP, tes koneksi, dan video langsung (RTSP → MJPEG di browser).
 - **Simulasi:** CAM-01 sampai CAM-03 (kamera demo) beserta seluruh analitiknya.
-- **Belum ada:** model deteksi. Kamera RTSP yang ditambahkan menampilkan video dan status koneksi;
-  hitungan, status arus, dan kejadiannya kosong ("—") sampai modul deteksi tersambung
-  (titik sambungnya: argumen `on_frame` di `streaming/reader.py`).
+- **Deteksi nyata (butuh model):** untuk kamera RTSP, hitungan per arah dan kelas, kecepatan,
+  lawan arah, kepadatan, status arus, dan kejadian dihitung dari video. Tanpa model, panel
+  analitik kamera RTSP kosong ("—") dengan penjelasan, bukan angka palsu.
 
 ## Menjalankan
 
@@ -42,6 +42,8 @@ python tools/fake_rtsp_server.py --user cctv --password rahasia   # rtsp://127.0
 Variabel lingkungan opsional: `TRAFFICSENSE_RTSP_TRANSPORT` (tcp/udp), `TRAFFICSENSE_STREAM_MAX_WIDTH`,
 `TRAFFICSENSE_STREAM_JPEG_QUALITY`, `TRAFFICSENSE_STREAM_MAX_FPS`.
 
+Struktur tambahan deteksi: `detection/` (detector, tracker, calibration, analyzer, pipeline, manager), `runtime.py` (menyalakan stream + deteksi), `services/live_analytics.py` (angka → template).
+
 **Keamanan (penting sebelum dipakai di luar jaringan tepercaya):**
 
 - Dashboard belum punya login. Siapa pun yang bisa membukanya bisa menambah kamera, yang membuat
@@ -52,6 +54,35 @@ Variabel lingkungan opsional: `TRAFFICSENSE_RTSP_TRANSPORT` (tcp/udp), `TRAFFICS
 - Sandi tidak pernah dirender ke HTML maupun log (ditampilkan `••••`).
 - Alamat link-local/metadata cloud, multicast, dan alamat tak valid ditolak; alamat LAN (10.x, 192.168.x) diizinkan karena CCTV memang di sana.
 - Satu penonton memakai satu thread server; dengan beberapa worker gunicorn, tiap worker membuka pembacanya sendiri.
+
+## Deteksi kendaraan
+
+1. Di komputer berinternet, ekspor model YOLO ke ONNX (sekali saja):
+   ```bash
+   pip install ultralytics
+   yolo export model=yolov8n.pt format=onnx imgsz=640
+   ```
+2. Jalankan server dengan `TRAFFICSENSE_MODEL=/jalur/yolov8n.onnx python manage.py runserver`.
+   Kamera RTSP yang tersimpan langsung dinyalakan dan dihitung terus, ada atau tidak ada yang membuka dashboard.
+3. Buka kamera → **Kalibrasi**, lalu klik di atas gambar kamera:
+   - **Arah A**: dua titik searah lalu lintas Arah A. Garis hitung otomatis tegak lurus panah (geser posisinya dengan slider).
+   - **Median** (opsional): satu titik di pemisah jalur. Sisi tempat panah berada = jalur Arah A. Tanpa median (atau centang "jalan satu arah") deteksi lawan arah mati.
+   - **Jarak referensi**: dua titik di jalan beserta jarak aslinya (meter). Tanpa ini kecepatan dan pelanggaran batas tidak dihitung.
+
+Yang dilakukan: YOLO (mobil, motor, bus, truk) → pelacak IoU → hitung saat melintas garis → kecepatan dari
+perpindahan titik tapak × skala → lawan arah dari gerak berlawanan arah jalur → kepadatan dari luas kotak
+terhadap frame. Hitungan harian dan grafik disimpan di `data/analytics/` tiap 30 detik (reset tiap pergantian hari).
+
+Variabel opsional: `TRAFFICSENSE_DETECT_FPS` (5), `TRAFFICSENSE_DETECT_CONF` (0,35),
+`TRAFFICSENSE_AUTOSTART=0` (jangan menyalakan kamera saat server hidup), `TRAFFICSENSE_STATE_DIR`.
+
+**Batas akurasi (baca sebelum memakai angkanya):**
+
+- Skala kecepatan memakai satu nilai meter-per-piksel; perspektif (jauh/dekat) membuat galat. Pilih jarak referensi di dekat garis hitung, sejajar jalan.
+- Kepadatan adalah perkiraan dari luas kotak (penuh = 30% frame), bukan okupansi jalan sebenarnya; sesuaikan `FULL_OCCUPANCY` di `detection/analyzer.py` per lokasi.
+- Pelacak sederhana: kendaraan yang saling menutup bisa tertukar atau terlewat. Untuk lalu lintas padat, ganti dengan ByteTrack (antarmuka `Tracker.update` sama).
+- Satu pipeline per kamera memakai CPU; naikkan `TRAFFICSENSE_DETECT_FPS` hanya bila perlu.
+- Inferensi model YOLO asli belum diuji di lingkungan pengembangan ini (tanpa berkas model dan jaringan); yang diuji adalah dekode keluaran, pelacak, dan penganalisis dengan deteksi skrip.
 
 ## Struktur folder
 

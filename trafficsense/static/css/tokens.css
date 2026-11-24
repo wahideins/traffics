@@ -1,0 +1,58 @@
+/* Design token: warna, tipografi, radius. Ubah aksen biru cukup dari sini. */
+:root {
+  --font-body: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Space Grotesk", Inter, system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Aksen biru */
+  --accent: #1d5fd6;
+  --accent-soft: rgba(29, 95, 214, 0.1);
+  --on-accent: #ffffff;
+
+  /* Permukaan dan teks */
+  --bg: #f3f6fb;
+  --surface: #ffffff;
+  --surface-muted: #f3f6fb;
+  --surface-input: #f7f9fd;
+  --chip: #e6ecf6;
+  --border: #dde5f1;
+  --border-strong: #c6d3e6;
+  --border-soft: #eef2f8;
+  --grid-line: #e3eaf4;
+  --text: #0f1b33;
+  --text-2: #26344f;
+  --text-muted: #5b6b86;
+
+  /* Status arus */
+  --lancar: #34b3a0;
+  --lancar-fg: #0b6b5d;
+  --lancar-bg: #e3f5f1;
+  --padat: #f2b544;
+  --padat-fg: #9a5200;
+  --padat-bg: #fff0d9;
+  --macet: #e5584b;
+  --macet-fg: #b42318;
+  --macet-bg: #fde8e6;
+  --cong-fg: #3730a3;
+  --cong-bg: #e5e8ff;
+
+  /* Kelas kendaraan */
+  --c-motor: #2563eb;
+  --c-mobil: #0e7490;
+  --c-bus: #6fb1f5;
+  --c-truk: #d97706;
+
+  /* Pratinjau kamera */
+  --video-bg: #0a1426;
+  --road: #14213a;
+  --video-text: #c9dbff;
+  --hud-bg: rgba(10, 20, 38, 0.75);
+  --alert: #ff6b6b;
+  --speeder: #ff9a3d;
+  --lane-line: #f5c542;
+
+  --radius-card: 16px;
+  --radius-md: 12px;
+  --radius-sm: 10px;
+  --gap: 20px;
+}

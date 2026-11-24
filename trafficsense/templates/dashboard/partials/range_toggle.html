@@ -1,0 +1,11 @@
+{# Panel: pemilih rentang waktu. Butuh: ranges #}
+<div class="segmented" role="group" aria-label="Rentang waktu" data-panel="range_toggle" data-depends="range">
+  {% for r in ranges %}
+  <button type="button"
+          class="segmented__item{% if r.active %} is-active{% endif %}"
+          data-action="select-range"
+          data-range="{{ r.key }}"
+          data-focus-id="range-{{ r.key }}"
+          aria-pressed="{{ r.active|yesno:'true,false' }}">{{ r.label }}</button>
+  {% endfor %}
+</div>

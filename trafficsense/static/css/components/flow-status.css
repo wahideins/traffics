@@ -1,0 +1,114 @@
+/* Status arus: banner level, skala kepadatan, kondisi per arah. */
+.flow--lancar { --lv-fg: var(--lancar-fg); --lv-bg: var(--lancar-bg); }
+.flow--padat { --lv-fg: var(--padat-fg); --lv-bg: var(--padat-bg); }
+.flow--macet { --lv-fg: var(--macet-fg); --lv-bg: var(--macet-bg); }
+
+.flow-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 14px;
+  background: var(--lv-bg);
+  color: var(--lv-fg);
+}
+
+.flow-banner__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--lv-fg);
+  color: #ffffff;
+}
+
+.flow-banner__los {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.flow-banner__label {
+  font-family: var(--font-display);
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.flow__desc {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-2);
+}
+
+/* Skala kepadatan: 50% lancar, 25% padat, 25% macet */
+.density-scale {
+  position: relative;
+  display: flex;
+  height: 10px;
+}
+
+.density-scale__seg--lancar { flex: 50 1 0; background: var(--lancar); border-radius: 999px 0 0 999px; }
+.density-scale__seg--padat { flex: 25 1 0; background: var(--padat); }
+.density-scale__seg--macet { flex: 25 1 0; background: var(--macet); border-radius: 0 999px 999px 0; }
+
+.density-scale__marker {
+  position: absolute;
+  top: -5px;
+  width: 20px;
+  height: 20px;
+  margin-left: -10px;
+  border-radius: 50%;
+  border: 3px solid var(--text);
+  background: #ffffff;
+}
+
+.density-scale__labels {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* Per arah */
+.directions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.directions__title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.direction {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.direction__name {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.direction__meta {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.directions__insight {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-2);
+}

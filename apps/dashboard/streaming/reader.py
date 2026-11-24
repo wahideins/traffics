@@ -33,12 +33,13 @@ class RtspReader:
     sambung untuk modul deteksi nanti.
     """
 
-    def __init__(self, code, url, config, *, capture_factory=open_capture, on_frame=None):
+    def __init__(self, code, url, config, *, capture_factory=open_capture, on_frame=None, annotate=None):
         self.code = code
         self._url = url
         self._config = config
         self._factory = capture_factory
         self._on_frame = on_frame
+        self._annotate = annotate  # menggambar overlay pada frame sebelum di-encode
 
         self._cond = threading.Condition()
         self._wake = threading.Event()
@@ -212,6 +213,11 @@ class RtspReader:
 
             # Selalu baca semua frame (agar buffer tidak menumpuk), tapi encode hanya sesuai batas fps.
             if now - last_emit >= min_interval:
+                if self._annotate is not None:
+                    try:
+                        self._annotate(frame)
+                    except Exception:  # noqa: BLE001
+                        LOG.exception("Kamera %s: annotate gagal", self.code)
                 try:
                     jpeg = encode_jpeg(frame, cfg.jpeg_quality, cfg.max_width)
                 except CaptureUnavailable as exc:

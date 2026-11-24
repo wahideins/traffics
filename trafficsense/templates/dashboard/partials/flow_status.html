@@ -1,0 +1,63 @@
+{# Panel: status arus. Butuh: flow, directions, insight #}
+<section class="card flow flow--{{ flow.key }}" data-panel="flow_status" data-refresh="live" data-depends="camera" aria-labelledby="flow-title">
+  <div>
+    <h2 class="card__title" id="flow-title">Status arus</h2>
+    <p class="card__subtitle">Estimasi dari kecepatan rata-rata dan kepadatan</p>
+  </div>
+
+  <div class="flow-banner">
+    <div class="flow-banner__icon">{% include "includes/icon.html" with name="gauge" size=28 %}</div>
+    <div>
+      <div class="flow-banner__los">Saat ini · {{ flow.los }}</div>
+      <div class="flow-banner__label">{{ flow.label }}</div>
+    </div>
+  </div>
+  <p class="flow__desc">{{ flow.desc }}</p>
+
+  <div>
+    <div class="density-scale" role="img" aria-label="Kepadatan {{ flow.density }} persen, status {{ flow.label }}">
+      <span class="density-scale__seg density-scale__seg--lancar"></span>
+      <span class="density-scale__seg density-scale__seg--padat"></span>
+      <span class="density-scale__seg density-scale__seg--macet"></span>
+      <span class="density-scale__marker" style="left:{{ flow.marker }}%"></span>
+    </div>
+    <ul class="density-scale__labels">
+      <li>Lancar &lt; 50%</li>
+      <li>Padat 50–75%</li>
+      <li>Macet &gt; 75%</li>
+    </ul>
+  </div>
+
+  <div class="stat-grid stat-grid--2">
+    <div class="stat-tile stat-tile--lg">
+      <div class="stat-tile__label">Kecepatan rata-rata</div>
+      <div class="stat-tile__value">{{ flow.speed }} <span class="stat-tile__unit">km/j</span></div>
+    </div>
+    <div class="stat-tile stat-tile--lg">
+      <div class="stat-tile__label">Kepadatan</div>
+      <div class="stat-tile__value">{{ flow.density }} <span class="stat-tile__unit">%</span></div>
+    </div>
+    <div class="stat-tile stat-tile--lg">
+      <div class="stat-tile__label">Arus</div>
+      <div class="stat-tile__value">{{ flow.rate }} <span class="stat-tile__unit">kend/mnt</span></div>
+    </div>
+    <div class="stat-tile stat-tile--lg">
+      <div class="stat-tile__label">Waktu tempuh per km</div>
+      <div class="stat-tile__value">{{ flow.travel }} <span class="stat-tile__unit">mnt</span></div>
+    </div>
+  </div>
+
+  <div class="directions">
+    <h3 class="directions__title">Kondisi per arah</h3>
+    {% for d in directions %}
+    <div class="direction">
+      <div>
+        <div class="direction__name">{{ d.label }}</div>
+        <div class="direction__meta">{{ d.speed }} km/j · kepadatan {{ d.density }}%</div>
+      </div>
+      <span class="badge badge--{{ d.level }}">{{ d.level|capfirst }}</span>
+    </div>
+    {% endfor %}
+    <p class="directions__insight">{{ insight }}</p>
+  </div>
+</section>

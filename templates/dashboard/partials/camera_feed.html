@@ -5,7 +5,7 @@
       <h2 class="card__title" id="feed-title">Pantauan langsung</h2>
       <p class="card__subtitle">{{ camera.id }} · {{ camera.name }}</p>
     </div>
-    {% if analytics %}{% include "dashboard/components/legend.html" %}{% endif %}
+    {% if analytics or camera.source == "rtsp" %}{% include "dashboard/components/legend.html" %}{% endif %}
   </div>
 
   <div class="feed__stage" role="group" aria-label="{% if camera.source == 'rtsp' %}Video langsung kamera {{ camera.name }}{% else %}Pratinjau simulasi kamera {{ camera.name }}{% endif %}">
@@ -40,9 +40,7 @@
     <div class="feed__overlay" role="status" hidden>Menghubungkan ke aliran RTSP…</div>
   </div>
 
-  {% if not analytics %}
-  <p class="feed__notice">Kamera ini baru menampilkan video. Hitungan kendaraan, status arus, dan kejadian akan muncul setelah modul deteksi tersambung.</p>
-  {% endif %}
+  {% if camera.source == "rtsp" %}{% include "dashboard/partials/detection_notice.html" %}{% endif %}
 
   <form class="feed__source" data-action="reconnect"{% if camera.source == "rtsp" %} data-reconnect-url="{% url 'dashboard:camera_reconnect' code=camera.id %}"{% endif %}>
     <div class="field">
@@ -50,6 +48,12 @@
       <input class="input input--mono" id="feed-source" type="text" value="{{ camera.display_url }}" readonly spellcheck="false" autocomplete="off">
     </div>
     <button type="submit" class="btn btn--primary" data-reconnect-btn>Hubungkan ulang</button>
+    {% if camera.source == "rtsp" %}
+    <button type="button" class="btn btn--ghost" data-action="open-calibration"
+            data-camera-id="{{ camera.id }}" data-calibration-url="{% url 'dashboard:camera_calibration' code=camera.id %}"
+            data-calibration="{{ detection.calibration_json }}" data-camera-name="{{ camera.name }}"
+            data-dir-a="{{ camera.dir_a }}" data-dir-b="{{ camera.dir_b }}" data-snapshot-url="{% url 'dashboard:camera_snapshot' code=camera.id %}">Kalibrasi</button>
+    {% endif %}
     {% if camera.deletable %}
     <button type="button" class="btn btn--danger" data-action="delete-camera"
             data-delete-url="{% url 'dashboard:camera_delete' code=camera.id %}"

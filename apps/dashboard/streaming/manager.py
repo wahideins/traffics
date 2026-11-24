@@ -17,6 +17,7 @@ class StreamManager:
         self._reader_factory = reader_factory
         self._readers = {}
         self._urls = {}
+        self._keep = set()  # kamera yang harus terus berjalan tanpa penonton (deteksi)
         self._lock = threading.RLock()
         self._reap_interval = reap_interval
         self._reaper = None
@@ -25,18 +26,28 @@ class StreamManager:
     def config(self) -> StreamConfig:
         return self._config
 
-    def ensure(self, code, url):
-        """Kembalikan reader yang berjalan untuk kamera (mulai bila perlu)."""
+    def ensure(self, code, url, *, on_frame=None, annotate=None, keep_alive=False):
+        """Kembalikan reader yang berjalan untuk kamera (mulai bila perlu).
+
+        `keep_alive=True`: jangan dihentikan saat tak ada penonton (untuk kamera yang dianalisis terus-menerus).
+        `on_frame`/`annotate` hanya dipakai saat reader baru dibuat.
+        """
         with self._lock:
             reader = self._readers.get(code)
             if reader is not None and (self._urls.get(code) != url or reader.stopped):
                 reader.stop()
                 reader = None
             if reader is None:
-                reader = self._reader_factory(code, url, self._config)
+                extra = {}
+                if on_frame is not None:
+                    extra["on_frame"] = on_frame
+                if annotate is not None:
+                    extra["annotate"] = annotate
+                reader = self._reader_factory(code, url, self._config, **extra)
                 self._readers[code] = reader
                 self._urls[code] = url
                 reader.start()
+            (self._keep.add if keep_alive else self._keep.discard)(code)
             self._ensure_reaper()
             return reader
 
@@ -59,6 +70,7 @@ class StreamManager:
         with self._lock:
             reader = self._readers.pop(code, None)
             self._urls.pop(code, None)
+            self._keep.discard(code)
         if reader is not None:
             reader.stop()
 
@@ -73,7 +85,7 @@ class StreamManager:
         """Hentikan reader yang tak ditonton melebihi batas. Kembalikan kode yang dihentikan."""
         limit = self._config.idle_stop_seconds
         with self._lock:
-            idle = [code for code, reader in self._readers.items() if reader.idle_seconds() > limit]
+            idle = [code for code, reader in self._readers.items() if code not in self._keep and reader.idle_seconds() > limit]
         for code in idle:
             self.stop(code)
         return idle
