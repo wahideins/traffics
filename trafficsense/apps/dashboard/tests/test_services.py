@@ -3,7 +3,8 @@ import datetime
 import re
 import unittest
 
-from apps.dashboard.services.cameras import CAMERAS, get_camera
+from apps.dashboard.services.cameras import CAMERAS
+from apps.dashboard.services.registry import get_camera
 from apps.dashboard.services.constants import EVENT_FILTERS, TIME_RANGES
 from apps.dashboard.services.context import build_dashboard_context
 from apps.dashboard.services.metrics import classify_flow, vehicle_counts

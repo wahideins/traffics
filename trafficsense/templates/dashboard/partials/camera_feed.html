@@ -1,49 +1,68 @@
-{# Panel: pantauan langsung #}
+{# Panel: pantauan langsung. Hanya dimuat ulang saat kamera berganti; HUD di dalamnya (feed_hud) diperbarui berkala. #}
 <section class="card feed" data-panel="camera_feed" data-depends="camera" aria-labelledby="feed-title">
   <div class="card__head">
     <div>
       <h2 class="card__title" id="feed-title">Pantauan langsung</h2>
       <p class="card__subtitle">{{ camera.id }} · {{ camera.name }}</p>
     </div>
-    {% include "dashboard/components/legend.html" %}
+    {% if analytics or camera.source == "rtsp" %}{% include "dashboard/components/legend.html" %}{% endif %}
   </div>
 
-  <div class="feed__stage" role="group" aria-label="Pantauan Kamera {{ camera.name }}">
-    
-    <!-- TAMPILAN VIDEO ASLI RTSP -->
-    <div class="feed__stream-container" style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background-color: #000;">
-      <img id="rtsp-player" 
-           src="{% url 'video_feed' camera.id %}?rtsp={{ camera.rtsp_url|urlencode }}" 
-           alt="Live Stream {{ camera.name }}"
-           style="max-width: 100%; max-height: 100%; object-fit: contain;">
+  <div class="feed__stage" role="group" aria-label="{% if camera.source == 'rtsp' %}Video langsung kamera {{ camera.name }}{% else %}Pratinjau simulasi kamera {{ camera.name }}{% endif %}">
+    {% if camera.source == "rtsp" %}
+    <img class="feed__video" data-feed-video src="{% url 'dashboard:camera_stream' code=camera.id %}" alt="Video langsung {{ camera.name }}">
+    {% else %}
+    <div class="feed__scene" aria-hidden="true">
+      <div class="feed__road"></div>
+      <div class="feed__edge feed__edge--top"></div>
+      <div class="feed__edge feed__edge--bottom"></div>
+      <div class="feed__median"></div>
+      <div class="feed__lane-line feed__lane-line--upper"></div>
+      <div class="feed__lane-line feed__lane-line--lower"></div>
+      <div class="feed__dir feed__dir--b">Arah B · {{ camera.dir_b }} ←</div>
+      <div class="feed__dir feed__dir--a">Arah A · {{ camera.dir_a }} →</div>
+      <div class="feed__count-line"></div>
+      <div class="feed__count-label">Garis hitung</div>
+
+      <div class="feed__vehicles">
+        {% for v in vehicles %}
+        <div class="vehicle c-{{ v.key }} vehicle--{{ v.direction }}{% if v.flag %} vehicle--{{ v.flag }}{% endif %}"
+             style="top:{{ v.top }}%;width:{{ v.w }}%;height:{{ v.h }}%;animation-duration:{{ v.duration }}s;animation-delay:{{ v.delay }}s;--rest:{{ v.rest }}%">
+          <span class="vehicle__label">{{ v.label }}</span>
+        </div>
+        {% endfor %}
+      </div>
     </div>
+    {% endif %}
 
     {% include "dashboard/partials/feed_hud.html" %}
 
     <div class="feed__overlay" role="status" hidden>Menghubungkan ke aliran RTSP…</div>
   </div>
 
-  <form class="feed__source" data-action="reconnect" onsubmit="handleReconnect(event)">
-    <label class="field">
-      Sumber RTSP
-      <input class="input" type="text" id="rtsp-input" name="rtsp" value="{{ camera.rtsp_url }}" spellcheck="false" autocomplete="off">
-    </label>
+  {% if camera.source == "rtsp" %}{% include "dashboard/partials/detection_notice.html" %}{% endif %}
+
+  <form class="feed__source" data-action="reconnect"{% if camera.source == "rtsp" %} data-reconnect-url="{% url 'dashboard:camera_reconnect' code=camera.id %}"{% endif %}>
+    <div class="field">
+      <label class="field__label" for="feed-source">Sumber RTSP</label>
+      <input class="input input--mono" id="feed-source" type="text" value="{{ camera.display_url }}" readonly spellcheck="false" autocomplete="off">
+    </div>
     <button type="submit" class="btn btn--primary" data-reconnect-btn>Hubungkan ulang</button>
+    {% if camera.source == "rtsp" %}
+    <button type="button" class="btn btn--ghost" data-action="open-calibration"
+            data-camera-id="{{ camera.id }}" data-calibration-url="{% url 'dashboard:camera_calibration' code=camera.id %}"
+            data-calibration="{{ detection.calibration_json }}" data-camera-name="{{ camera.name }}"
+            data-dir-a="{{ camera.dir_a }}" data-dir-b="{{ camera.dir_b }}" data-snapshot-url="{% url 'dashboard:camera_snapshot' code=camera.id %}">Kalibrasi</button>
+    {% endif %}
+    {% if camera.deletable %}
+    <button type="button" class="btn btn--danger" data-action="delete-camera"
+            data-delete-url="{% url 'dashboard:camera_delete' code=camera.id %}"
+            data-camera-name="{{ camera.name }}">Hapus kamera</button>
+    {% endif %}
   </form>
 
   <ul class="feed__meta">
-    <li>Stream RTSP Live</li>
-    <li>MJPEG Response</li>
+    <li>{% if camera.source == "rtsp" %}Aliran RTSP · kredensial disamarkan{% else %}Simulasi · kredensial disamarkan{% endif %}</li>
+    <li>Batas kecepatan {{ camera.speed_limit }} km/j</li>
   </ul>
 </section>
-
-<script>
-function handleReconnect(e) {
-  e.preventDefault();
-  const inputUrl = document.getElementById('rtsp-input').value;
-  const imgPlayer = document.getElementById('rtsp-player');
-  
-  // Reload elemen <img> dengan RTSP URL baru & cache buster timestamp
-  imgPlayer.src = "{% url 'video_feed' camera.id %}?rtsp=" + encodeURIComponent(inputUrl) + "&t=" + Date.now();
-}
-</script>

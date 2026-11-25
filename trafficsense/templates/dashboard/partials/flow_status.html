@@ -15,11 +15,11 @@
   <p class="flow__desc">{{ flow.desc }}</p>
 
   <div>
-    <div class="density-scale" role="img" aria-label="Kepadatan {{ flow.density }} persen, status {{ flow.label }}">
+    <div class="density-scale" role="img" aria-label="{% if flow.key == 'unknown' %}Kepadatan belum tersedia{% else %}Kepadatan {{ flow.density }} persen, status {{ flow.label }}{% endif %}">
       <span class="density-scale__seg density-scale__seg--lancar"></span>
       <span class="density-scale__seg density-scale__seg--padat"></span>
       <span class="density-scale__seg density-scale__seg--macet"></span>
-      <span class="density-scale__marker" style="left:{{ flow.marker }}%"></span>
+      {% if flow.key != "unknown" %}<span class="density-scale__marker" style="left:{{ flow.marker }}%"></span>{% endif %}
     </div>
     <ul class="density-scale__labels">
       <li>Lancar &lt; 50%</li>

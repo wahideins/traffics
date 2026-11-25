@@ -2,6 +2,8 @@
 .flow--lancar { --lv-fg: var(--lancar-fg); --lv-bg: var(--lancar-bg); }
 .flow--padat { --lv-fg: var(--padat-fg); --lv-bg: var(--padat-bg); }
 .flow--macet { --lv-fg: var(--macet-fg); --lv-bg: var(--macet-bg); }
+.flow--unknown { --lv-fg: var(--text-muted); --lv-bg: var(--chip); }
+.flow--unknown .density-scale { opacity: 0.45; }
 
 .flow-banner {
   display: flex;

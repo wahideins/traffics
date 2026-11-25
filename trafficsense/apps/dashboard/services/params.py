@@ -1,8 +1,8 @@
 """Parsing dan validasi parameter query (?camera=&range=&event_type=)."""
 from dataclasses import dataclass
 
-from .cameras import get_camera
 from .constants import DEFAULT_RANGE, EVENT_FILTERS, TIME_RANGES
+from .registry import get_camera
 
 _EVENT_KEYS = {key for key, _ in EVENT_FILTERS}
 

@@ -1,6 +1,6 @@
 from django.urls import path
 
-from .views import pages, panels
+from .views import cameras, pages, panels
 
 app_name = "dashboard"
 
@@ -9,8 +9,12 @@ urlpatterns = [
     path("", pages.index, name="index"),
     # Potongan HTML per panel (dipakai JS untuk pembaruan berkala)
     path("panels/<slug:name>/", panels.panel, name="panel"),
-    path('video-feed/<str:camera_id>/', panels.video_feed, name='video_feed'), #path untuk menampilkan video feed RTSP dari kamera
-    #Autentikasi
-    path('login/', pages.login_view, name='login'),
-    path('logout/', pages.logout_view, name='logout'),
+    # Kelola kamera
+    path("cameras/probe/", cameras.probe, name="camera_probe"),
+    path("cameras/add/", cameras.add, name="camera_add"),
+    path("cameras/<slug:code>/stream.mjpg", cameras.stream, name="camera_stream"),
+    path("cameras/<slug:code>/snapshot.jpg", cameras.snapshot, name="camera_snapshot"),
+    path("cameras/<slug:code>/reconnect/", cameras.reconnect, name="camera_reconnect"),
+    path("cameras/<slug:code>/calibration/", cameras.calibration, name="camera_calibration"),
+    path("cameras/<slug:code>/delete/", cameras.delete, name="camera_delete"),
 ]

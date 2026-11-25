@@ -1,5 +1,4 @@
 {# Header: merek, pemilih kamera, penanda mode demo, jam #}
-
 <header class="app-header">
   <div class="brand">
     <div class="brand__logo">{% include "includes/icon.html" with name="road" size=24 %}</div>
@@ -9,27 +8,14 @@
     </div>
   </div>
 
-
   {% include "dashboard/partials/camera_tabs.html" %}
 
   <div class="app-header__side">
+    <button type="button" class="btn btn--ghost btn--icon" data-action="open-add-camera">{% include "includes/icon.html" with name="plus" size=18 %}Tambah kamera</button>
+    <span class="pill">Kamera demo: data simulasi</span>
     <div class="clock">
       <div class="clock__time" data-clock>{% now "H:i:s" %}</div>
       <div class="clock__date" data-date>{% now "l, j F Y" %}</div>
     </div>
   </div>
-
-  <div class="app-header__userprofile">
-    <span>Halo, <strong>{{ request.user.username }}</strong></span>
-  
-    <a href="{% url 'logout' %}" class="btn--logout" title="Keluar dari akun">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-      <polyline points="16 17 21 12 16 7"></polyline>
-      <line x1="21" y1="12" x2="9" y2="12"></line>
-      </svg>
-      <span>Logout</span>
-    </a> 
-  </div>
-
 </header>

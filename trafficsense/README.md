@@ -1,8 +1,12 @@
 # TrafficSense — Dashboard analitik lalu lintas CCTV (front-end)
 
-Implementasi front-end dashboard memakai Django. Tahap ini **hanya antarmuka**:
-semua angka berasal dari data simulasi di `apps/dashboard/services/`. Aliran RTSP,
-model deteksi, dan penyimpanan kejadian disambungkan pada tahap berikutnya.
+Dashboard memakai Django. Status tahap ini:
+
+- **Nyata:** menambah/menghapus kamera RTSP, tes koneksi, dan video langsung (RTSP → MJPEG di browser).
+- **Simulasi:** CAM-01 sampai CAM-03 (kamera demo) beserta seluruh analitiknya.
+- **Deteksi nyata (butuh model):** untuk kamera RTSP, hitungan per arah dan kelas, kecepatan,
+  lawan arah, kepadatan, status arus, dan kejadian dihitung dari video. Tanpa model, panel
+  analitik kamera RTSP kosong ("—") dengan penjelasan, bukan angka palsu.
 
 ## Menjalankan
 
@@ -21,6 +25,69 @@ Tes:
 ```bash
 python manage.py test apps.dashboard
 ```
+
+## Kamera RTSP
+
+Klik **Tambah kamera**, isi nama dan tautan RTSP (`rtsp://host:554/path`), nama pengguna/sandi
+(opsional), lalu **Tes koneksi** dan **Simpan**. Kamera tersimpan di `data/cameras.json`
+(bisa diganti lewat `TRAFFICSENSE_CAMERA_STORE`). Video baru dibuka saat ada yang menonton dan
+dihentikan 20 detik setelah penonton terakhir pergi.
+
+Uji tanpa kamera asli (butuh `ffmpeg`):
+
+```bash
+python tools/fake_rtsp_server.py --user cctv --password rahasia   # rtsp://127.0.0.1:8554/live
+```
+
+Variabel lingkungan opsional: `TRAFFICSENSE_RTSP_TRANSPORT` (tcp/udp), `TRAFFICSENSE_STREAM_MAX_WIDTH`,
+`TRAFFICSENSE_STREAM_JPEG_QUALITY`, `TRAFFICSENSE_STREAM_MAX_FPS`.
+
+Struktur tambahan deteksi: `detection/` (detector, tracker, calibration, analyzer, pipeline, manager), `runtime.py` (menyalakan stream + deteksi), `services/live_analytics.py` (angka → template).
+
+**Keamanan (penting sebelum dipakai di luar jaringan tepercaya):**
+
+- Dashboard belum punya login. Siapa pun yang bisa membukanya bisa menambah kamera, yang membuat
+  *server* menyambung ke alamat tersebut. Pasang autentikasi atau batasi akses jaringan.
+- Sandi disimpan sebagai teks biasa di `data/cameras.json` (izin 0600, masuk `.gitignore`).
+  Produksi: gunakan secret manager atau enkripsi.
+- Sandi dikirim dari browser ke server saat menyimpan; gunakan HTTPS.
+- Sandi tidak pernah dirender ke HTML maupun log (ditampilkan `••••`).
+- Alamat link-local/metadata cloud, multicast, dan alamat tak valid ditolak; alamat LAN (10.x, 192.168.x) diizinkan karena CCTV memang di sana.
+- Satu penonton memakai satu thread server; dengan beberapa worker gunicorn, tiap worker membuka pembacanya sendiri.
+
+## Deteksi kendaraan
+
+1. Di komputer berinternet, ekspor model YOLO ke ONNX (sekali saja):
+   ```bash
+   pip install ultralytics
+   yolo export model=yolov8n.pt format=onnx imgsz=640
+   ```
+2. Jalankan server dengan `TRAFFICSENSE_MODEL=/jalur/yolov8n.onnx python manage.py runserver`.
+   Kamera RTSP yang tersimpan langsung dinyalakan dan dihitung terus, ada atau tidak ada yang membuka dashboard.
+3. Buka kamera → **Kalibrasi**, lalu klik di atas gambar kamera:
+   - **Arah A**: dua titik searah lalu lintas Arah A. Garis hitung otomatis tegak lurus panah (geser posisinya dengan slider).
+   - **Median** (opsional): satu titik di pemisah jalur. Sisi tempat panah berada = jalur Arah A. Tanpa median (atau centang "jalan satu arah") deteksi lawan arah mati.
+   - **Jarak referensi**: dua titik di jalan beserta jarak aslinya (meter). Tanpa ini kecepatan dan pelanggaran batas tidak dihitung.
+   - **Area deteksi** (opsional, sangat disarankan di CPU): dua sudut yang membingkai jalan. Hanya bagian ini yang dikirim ke model, sehingga kendaraan jauh tampil lebih besar dan langit/bangunan tidak ikut diproses.
+
+Yang dilakukan: YOLO (mobil, motor, bus, truk) → pelacak IoU → hitung saat melintas garis → kecepatan dari
+perpindahan titik tapak × skala → lawan arah dari gerak berlawanan arah jalur → kepadatan dari luas kotak
+terhadap frame. Hitungan harian dan grafik disimpan di `data/analytics/` tiap 30 detik (reset tiap pergantian hari).
+
+Perangkat keras: `TRAFFICSENSE_PROVIDER` = `auto` (bawaan: CUDA, lalu DirectML, lalu CPU) / `cpu` / `cuda` / `dml`.
+Untuk GPU di Windows, ganti paket: `pip uninstall onnxruntime` lalu `pip install onnxruntime-directml` (GPU apa pun yang mendukung DirectX 12)
+atau `onnxruntime-gpu` (NVIDIA + CUDA). Status dan waktu inferensi tampil di bawah video ("Deteksi: x fps · y ms · CPU/DML/CUDA").
+
+Variabel opsional: `TRAFFICSENSE_DETECT_FPS` (5), `TRAFFICSENSE_DETECT_CONF` (0,35),
+`TRAFFICSENSE_AUTOSTART=0` (jangan menyalakan kamera saat server hidup), `TRAFFICSENSE_STATE_DIR`.
+
+**Batas akurasi (baca sebelum memakai angkanya):**
+
+- Skala kecepatan memakai satu nilai meter-per-piksel; perspektif (jauh/dekat) membuat galat. Pilih jarak referensi di dekat garis hitung, sejajar jalan.
+- Kepadatan adalah perkiraan dari luas kotak (penuh = 30% frame), bukan okupansi jalan sebenarnya; sesuaikan `FULL_OCCUPANCY` di `detection/analyzer.py` per lokasi.
+- Pelacak sederhana: kendaraan yang saling menutup bisa tertukar atau terlewat. Untuk lalu lintas padat, ganti dengan ByteTrack (antarmuka `Tracker.update` sama).
+- Satu pipeline per kamera memakai CPU; naikkan `TRAFFICSENSE_DETECT_FPS` hanya bila perlu.
+- Inferensi model YOLO asli belum diuji di lingkungan pengembangan ini (tanpa berkas model dan jaringan); yang diuji adalah dekode keluaran, pelacak, dan penganalisis dengan deteksi skrip.
 
 ## Struktur folder
 
@@ -130,7 +197,8 @@ tidak hilang.
 
 Ganti isi `services/` (metrics, series, vehicles, events, cameras) dengan sumber data
 nyata yang mengembalikan bentuk dict yang sama; view dan template tidak perlu diubah.
-Tombol "Lihat klip" dan "Hubungkan ulang" sudah ada di UI tetapi belum terhubung.
+Tombol "Lihat klip" belum terhubung. Struktur tambahan: `services/{rtsp_url,camera_form,camera_store,registry,camera_admin}.py`
+(logika kamera, tanpa Django), `streaming/` (pembaca RTSP, MJPEG, tes koneksi), `views/cameras.py`, `tools/` (RTSP palsu untuk uji).
 
 ## Catatan
 

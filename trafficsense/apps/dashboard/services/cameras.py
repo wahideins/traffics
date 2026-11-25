@@ -1,11 +1,10 @@
-"""Katalog kamera (data simulasi).
+"""Katalog kamera demo (data simulasi, tidak membaca stream sungguhan).
 
-Nanti diganti dengan model/tabel kamera yang menyimpan URL RTSP asli.
-URL di sini sengaja disamarkan kredensialnya.
+Kamera yang ditambahkan pengguna ada di camera_store.py. URL di sini sengaja
+disamarkan kredensialnya.
 """
 from dataclasses import dataclass
 from typing import NamedTuple
-import cv2
 
 
 class CameraEvent(NamedTuple):
@@ -43,13 +42,22 @@ class Camera:
     base_counts_b: tuple
     events: tuple
 
+    # Antarmuka yang sama dengan LiveCamera (camera_store.py), dipakai template.
+    source = "demo"
+    has_analytics = True
+    deletable = False
+
+    @property
+    def display_url(self):
+        return self.rtsp_url
+
 
 CAMERAS = (
     Camera(
         id="CAM-01",
-        name="Jl. Pare Kandangan, Templek Utara, Gadungan, Kec. Puncu, Kabupaten Kediri, Jawa Timur 64292",
-        short="Depan GIGANET",
-        rtsp_url="rtsp://admin:Mitragigan3t@10.10.10.172:554/cam/realmonitor?channel=1&subtype=0&unicast=true&proto=Onvif",
+        name="Jl. Raya Utama KM 12",
+        short="Raya Utama KM 12",
+        rtsp_url="rtsp://admin:••••@192.168.10.21:554/stream1",
         speed_limit=60,
         dir_a="Timur",
         dir_b="Barat",
@@ -140,42 +148,4 @@ CAMERAS = (
     ),
 )
 
-_BY_ID = {camera.id: camera for camera in CAMERAS}
-
-
-def list_cameras():
-    return CAMERAS
-
-
-def get_camera(camera_id) -> Camera:
-    """Kamera sesuai id; id tak dikenal jatuh ke kamera pertama."""
-    return _BY_ID.get(camera_id, CAMERAS[0])
-
-
-def camera_index(camera: Camera) -> int:
-    return CAMERAS.index(camera)
-
-def generate_rtsp_stream(rtsp_url: str):
-    """Membaca frame RTSP dan meng-encode ke format JPEG stream (MJPEG)."""
-    cap = cv2.VideoCapture(rtsp_url)
-    
-    # Atur buffer size agar latensi lebih rendah
-    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-
-    try:
-        while True:
-            success, frame = cap.read()
-            if not success:
-                break
-
-            # Encode frame ke JPEG
-            ret, buffer = cv2.imencode('.jpg', frame)
-            if not ret:
-                continue
-
-            frame_bytes = buffer.tobytes()
-            # Format multipart/x-mixed-replace
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-    finally:
-        cap.release()
+# Pencarian kamera (demo + tambahan) ada di registry.py.

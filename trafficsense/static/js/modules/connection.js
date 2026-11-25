@@ -1,5 +1,6 @@
-// Simulasi status koneksi RTSP: overlay "Menghubungkan…" saat ganti kamera
-// atau menekan "Hubungkan ulang". Belum ada koneksi sungguhan di tahap ini.
+// Status koneksi RTSP: overlay "Menghubungkan…" saat ganti kamera atau menekan "Hubungkan ulang".
+// Untuk kamera RTSP, tombol meminta server menyambung ulang lalu memuat ulang video.
+import { postForm } from "../api.js";
 import { config } from "../config.js";
 
 let timer;
@@ -25,11 +26,23 @@ export function showConnecting(duration = config.connectingMs) {
   }, duration);
 }
 
+function reloadVideo() {
+  const img = document.querySelector("img[data-feed-video]");
+  if (!img) return;
+  const url = new URL(img.getAttribute("src"), window.location.href);
+  url.searchParams.set("t", Date.now());
+  img.src = url.toString();
+}
+
 export function initConnection() {
-  document.addEventListener("submit", (event) => {
-    if (event.target.matches('[data-action="reconnect"]')) {
-      event.preventDefault();
-      showConnecting();
-    }
+  document.addEventListener("submit", async (event) => {
+    const formEl = event.target;
+    if (!formEl.matches('[data-action="reconnect"]')) return;
+    event.preventDefault();
+
+    const url = formEl.dataset.reconnectUrl;
+    if (url) await postForm(url);
+    showConnecting();
+    if (url) setTimeout(reloadVideo, 300);
   });
 }

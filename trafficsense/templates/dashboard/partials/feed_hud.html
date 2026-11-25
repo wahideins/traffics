@@ -1,15 +1,26 @@
 {# Panel: HUD di atas pratinjau (status, jam, hitungan, peringatan). Diperbarui berkala. #}
 <div class="feed__hud" data-panel="feed_hud" data-refresh="live" data-depends="camera">
+  {% if stream %}
+  <div class="hud hud--status">
+    <span class="hud__dot hud__dot--{{ stream.state }}"></span>{{ stream.label }}
+    {% if stream.resolution %}<span class="hud__muted">{{ camera.id }} · {{ stream.resolution }}{% if stream.fps %} · {{ stream.fps }} fps{% endif %}</span>{% endif %}
+  </div>
+  {% else %}
   <div class="hud hud--status">
     <span class="hud__dot"></span>LIVE
-    <span class="hud__muted">{{ camera.id }} · 25 fps · 1080p</span>
+    <span class="hud__muted">{{ camera.id }} · simulasi</span>
   </div>
-  <!-- <div class="hud hud--clock" data-clock>{% now "H:i:s" %}</div> -->
+  {% endif %}
+  <div class="hud hud--clock" data-clock>{% now "H:i:s" %}</div>
+  {% if analytics %}
   <div class="hud hud--counts">A → {{ hud.a }} &nbsp;·&nbsp; B ← {{ hud.b }}</div>
+  {% endif %}
   {% if alert %}
   <div class="feed__alert" role="status">
     {% include "includes/icon.html" with name="warning" size=16 %}
     {{ alert }}
   </div>
+  {% elif stream and stream.message %}
+  <div class="feed__alert feed__alert--info" role="status">{{ stream.message }}</div>
   {% endif %}
 </div>

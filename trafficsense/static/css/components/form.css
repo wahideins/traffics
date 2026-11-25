@@ -1,0 +1,77 @@
+/* Isian formulir: label, input, pesan bantuan dan galat. */
+.field,
+.form-field {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field { flex: 1 1 320px; }
+
+.field__label,
+.form-field__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.form-field__req { color: var(--macet-fg); }
+
+.input {
+  width: 100%;
+  min-width: 0;
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-input);
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--text);
+}
+
+.input--mono {
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+.input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.input[aria-invalid="true"] { border-color: var(--macet); }
+
+.form-field__msg {
+  min-height: 0;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.form-field__msg:empty { display: none; }
+.form-field__hint { color: var(--text-muted); }
+.form-field__error { display: block; color: var(--macet-fg); font-weight: 600; }
+.form-field__error:empty { display: none; }
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.form-status {
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.form-status:empty { display: none; }
+.form-status--ok { background: var(--lancar-bg); color: var(--lancar-fg); }
+.form-status--error { background: var(--macet-bg); color: var(--macet-fg); }
+.form-status--info { background: var(--accent-soft); color: var(--text-2); }
+
+@media (max-width: 520px) {
+  .form-grid { grid-template-columns: minmax(0, 1fr); }
+}
