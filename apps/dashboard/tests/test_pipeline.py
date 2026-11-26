@@ -174,3 +174,54 @@ class ManagerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipIf(np is None, "numpy/opencv tidak terpasang")
+class ZonesOnlyTests(unittest.TestCase):
+    SQUARE = [[0.2, 0.5], [0.6, 0.5], [0.6, 0.9], [0.2, 0.9]]
+
+    def _pipeline(self, zones_only=True):
+        from apps.dashboard.detection.calibration import parse_calibration
+        data = {**calibrated().to_dict(), "zones": [{"name": "Z", "color": "#3d8cff", "points": self.SQUARE}],
+                "zones_only": zones_only}
+        cal, errors = parse_calibration(data)
+        self.assertEqual(errors, {})
+        return DetectionPipeline("CAM-04", TrafficAnalyzer(speed_limit=60, calibration=cal), lambda c: None, CFG)
+
+    def test_crop_topeng_saring_dan_geser_koordinat(self):
+        seen = {}
+
+        class Det:
+            def detect(self, frame):
+                seen["shape"] = frame.shape
+                seen["outside_gray"] = bool((frame[0, 0] == 114).all())
+                seen["inside_kept"] = bool((frame[frame.shape[0] // 2, frame.shape[1] // 2] == 255).all())
+                h, w = frame.shape[:2]
+                from apps.dashboard.detection.types import Detection
+                # satu kendaraan di dalam zona (tapak di tengah crop), satu di sudut luar zona
+                return [Detection((w * 0.4, h * 0.3, w * 0.6, h * 0.6), 0.9, "mobil"),
+                        Detection((0, 0, 20, 20), 0.9, "motor")]
+
+        p = self._pipeline()
+        frame = np.full((720, 1280, 3), 255, dtype=np.uint8)
+        dets, area = p._detect_in_zones(Det(), frame, p.analyzer.calibration)
+        self.assertEqual([d.cls for d in dets], ["mobil"])
+        self.assertLess(seen["shape"][0] * seen["shape"][1], 720 * 1280 * 0.35)  # jauh lebih kecil dari frame penuh
+        self.assertTrue(seen["outside_gray"])
+        self.assertTrue(seen["inside_kept"])
+        x1, y1, x2, y2 = dets[0].box
+        self.assertTrue(0.2 * 1280 <= (x1 + x2) / 2 <= 0.6 * 1280 and y2 <= 0.9 * 720 + 20)
+        self.assertAlmostEqual(area, 0.4 * 0.4 * 1280 * 720, delta=0.02 * 1280 * 720)
+
+    def test_dimatikan_memakai_frame_penuh(self):
+        class Det:
+            shape = None
+
+            def detect(self, frame):
+                Det.shape = frame.shape
+                return []
+
+        p = self._pipeline(zones_only=False)
+        _, area = p._detect_in_roi(Det(), np.zeros((720, 1280, 3), dtype=np.uint8))
+        self.assertEqual(Det.shape, (720, 1280, 3))
+        self.assertEqual(area, 720 * 1280)

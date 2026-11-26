@@ -26,6 +26,18 @@ def ensure_camera(camera):
     )
 
 
+def snapshot_jpeg(camera, *, clean=False, timeout=10.0):
+    """Satu frame JPEG kamera; menyalakan pembaca bila belum jalan dan menunggu frame pertama.
+
+    `clean=True`: tanpa kotak/zona (untuk halaman kalibrasi). None bila tak ada frame dalam `timeout`.
+    """
+    reader = ensure_camera(camera)
+    with reader.viewer():  # tahan agar tidak dihentikan reaper selagi menunggu
+        if not reader.wait_for_first_frame(timeout):
+            return None
+        return reader.latest_clean_jpeg() if clean else reader.latest_jpeg()
+
+
 def stop_camera(code, *, delete_state=False):
     get_manager().stop(code)
     get_detection_manager().remove(code, delete_state=delete_state)

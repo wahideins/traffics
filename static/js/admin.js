@@ -1,6 +1,5 @@
 // Halaman pengaturan: simpan parameter, kelola model, tindakan kamera.
 import { postForm } from "./api.js";
-import { initCalibration } from "./modules/calibration.js";
 import { initCameraAdmin } from "./modules/camera-admin.js";
 import { qs, qsa } from "./utils/dom.js";
 
@@ -105,4 +104,3 @@ setInterval(async () => {
 }, 3000);
 
 initCameraAdmin();
-initCalibration();

@@ -50,6 +50,9 @@ class RtspReader:
         self._status = StreamStatus()
         self._frame_id = 0
         self._jpeg = None
+        self._clean_jpeg = None  # frame tanpa overlay, hanya di-encode bila diminta (kalibrasi)
+        self._clean_until = 0.0
+        self._clean_at = 0.0
 
         self._viewers = 0
         self._idle_since = time.monotonic()
@@ -89,6 +92,23 @@ class RtspReader:
     def latest_jpeg(self):
         with self._cond:
             return self._jpeg
+
+    def wait_for_first_frame(self, timeout):
+        """Tunggu sampai ada frame pertama (pembaca baru butuh beberapa detik untuk tersambung)."""
+        with self._cond:
+            self._cond.wait_for(lambda: self._jpeg is not None or self._stopping, timeout)
+            return self._jpeg is not None
+
+    def latest_clean_jpeg(self, timeout=2.0):
+        """Frame tanpa overlay deteksi (untuk kalibrasi). Meminta reader meng-encode-nya selama beberapa detik."""
+        with self._cond:
+            if self._annotate is None:
+                return self._jpeg
+            self._clean_until = time.monotonic() + 15.0
+            self._cond.wait_for(
+                lambda: self._clean_jpeg is not None and time.monotonic() - self._clean_at < 3.0, timeout
+            )
+            return self._clean_jpeg if self._clean_jpeg is not None else self._jpeg
 
     def wait_for_frame(self, last_id, timeout):
         """Tunggu frame yang lebih baru dari last_id. Kembalikan (id, jpeg) atau None."""
@@ -213,6 +233,12 @@ class RtspReader:
 
             # Selalu baca semua frame (agar buffer tidak menumpuk), tapi encode hanya sesuai batas fps.
             if now - last_emit >= min_interval:
+                clean = None
+                if self._annotate is not None and time.monotonic() < self._clean_until:
+                    try:
+                        clean = encode_jpeg(frame, cfg.jpeg_quality, cfg.max_width)
+                    except CaptureUnavailable:
+                        clean = None
                 if self._annotate is not None:
                     try:
                         self._annotate(frame)
@@ -228,6 +254,8 @@ class RtspReader:
                 with self._cond:
                     self._frame_id += 1
                     self._jpeg = jpeg
+                    if clean is not None:
+                        self._clean_jpeg, self._clean_at = clean, time.monotonic()
                     self._status = replace(self._status, fps=round(fps, 1), frames=frames)
                     self._cond.notify_all()
         return got_frame

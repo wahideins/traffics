@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Kalibrasi {{ camera.name }} · TrafficSense{% endblock %}
+{% block content %}
+<main class="cal-page" data-cal-page
+      data-camera-id="{{ camera.id }}"
+      data-save-url="{% url 'dashboard:camera_calibration' code=camera.id %}"
+      data-snapshot-url="{% url 'dashboard:camera_snapshot' code=camera.id %}"
+      data-stream-url="{% url 'dashboard:camera_stream' code=camera.id %}"
+      data-stats-url="{% url 'dashboard:admin_zone_stats' code=camera.id %}"
+      data-calibration="{{ calibration_json }}">
+  <header class="cal-top">
+    <div>
+      <a class="admin-sub" href="{% url 'dashboard:admin_panel' %}#kamera">← Pengaturan</a>
+      <h1 class="admin-title">Kalibrasi · {{ camera.name }}</h1>
+    </div>
+    <div class="cal-top__side">
+      <span class="admin-sub" data-cal-dirty hidden>Ada perubahan belum disimpan</span>
+      <button type="button" class="btn btn--ghost" data-action="reset-calibration">Ulangi semua</button>
+      <button type="button" class="btn btn--primary" data-action="save-calibration">Simpan kalibrasi</button>
+    </div>
+  </header>
+  <p class="form-status" data-cal-status role="status" aria-live="polite"></p>
+
+  <div class="cal-layout">
+    <section class="cal-main">
+      <div class="cal-stage" data-cal-stage>
+        <img class="cal-stage__img" data-cal-img alt="Tangkapan layar kamera untuk kalibrasi" draggable="false">
+        <svg class="cal-stage__svg" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true" data-cal-svg>
+          <rect data-cal-roi class="cal-roi" visibility="hidden"/>
+          <g data-cal-zones></g>
+          <line data-cal-line="axis" class="cal-line cal-line--axis"/>
+          <line data-cal-line="count" class="cal-line cal-line--count"/>
+          <line data-cal-line="ref" class="cal-line cal-line--ref"/>
+        </svg>
+        <div data-cal-labels class="cal-labels"></div>
+        <div data-cal-markers></div>
+        <p class="cal-stage__msg" data-cal-msg role="status"></p>
+      </div>
+      <button type="button" class="btn btn--ghost" data-action="retry-still" hidden>Coba ambil gambar lagi</button>
+      <label class="cal-check"><input type="checkbox" data-cal-preview> Pratinjau langsung: video dengan deteksi, zona, dan waktu tinggal (memakai kalibrasi yang sudah disimpan)</label>
+      <div data-cal-stats class="cal-stats" hidden>
+        <table class="data-table admin-table">
+          <thead><tr><th>Zona</th><th>Sekarang</th><th>Masuk</th><th>Rata-rata tinggal</th><th>Terlama</th></tr></thead>
+          <tbody data-cal-stats-body></tbody>
+        </table>
+        <p class="admin-sub" data-cal-stats-note></p>
+      </div>
+    </section>
+
+    <aside class="cal-side">
+      <section class="card cal-card">
+        <h2 class="card__title">Penanda</h2>
+        <div class="cal-steps" role="group" aria-label="Alat kalibrasi">
+          <button type="button" class="cal-step" data-cal-tool="axis"><strong>Arah A</strong><span>Klik awal lalu akhir, searah lalu lintas Arah A</span></button>
+          <button type="button" class="cal-step" data-cal-tool="median"><strong>Median</strong><span>Opsional: satu titik di pemisah jalur (lawan arah)</span></button>
+          <button type="button" class="cal-step" data-cal-tool="ref"><strong>Jarak referensi</strong><span>Dua titik di jalan yang jaraknya diketahui</span></button>
+          <button type="button" class="cal-step" data-cal-tool="roi"><strong>Area deteksi</strong><span>Opsional: dua sudut yang membingkai jalan</span></button>
+        </div>
+        <div class="form-field">
+          <label class="form-field__label" for="cal-ref-m">Jarak asli titik referensi (meter)</label>
+          <input class="input" id="cal-ref-m" type="text" inputmode="decimal" autocomplete="off" placeholder="Contoh: 12,5" data-cal-input="ref_m">
+          <p class="form-field__msg"><span class="form-field__hint">Marka putus-putus biasanya 3 m, jeda 5 m; lebar lajur 3,5 m.</span></p>
+        </div>
+        <div class="form-field">
+          <label class="form-field__label" for="cal-line-pos">Posisi garis hitung: <output data-cal-linepos-out>50</output>%</label>
+          <input id="cal-line-pos" type="range" min="10" max="90" step="1" value="50" data-cal-input="line_pos">
+        </div>
+        <label class="cal-check"><input type="checkbox" data-cal-input="one_way"> Jalan satu arah (ke Arah B = lawan arah)</label>
+      </section>
+
+      <section class="card cal-card">
+        <div class="card__head"><h2 class="card__title">Zona lajur</h2>
+          <button type="button" class="btn btn--ghost" data-action="add-zone">+ Tambah zona</button></div>
+        <p class="admin-sub">Klik titik-titik sudut di gambar (alat Zona), klik titik pertama atau tekan Enter untuk menutup. Seret titik untuk menggeser, klik dua kali untuk menghapus titik. Waktu tinggal dihitung dari titik tengah-bawah kotak kendaraan.</p>
+        <label class="cal-check"><input type="checkbox" data-cal-input="zones_only"> Deteksi hanya di dalam zona (lebih ringan di CPU; Area deteksi diabaikan)</label>
+        <ul class="zone-list" data-zone-list></ul>
+        <button type="button" class="btn btn--primary" data-action="finish-zone" hidden>Selesai menggambar zona</button>
+      </section>
+    </aside>
+  </div>
+</main>
+{% endblock %}
+{% block scripts %}<script type="module" src="{% static 'js/calibration-page.js' %}"></script>{% endblock %}

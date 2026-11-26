@@ -8,7 +8,7 @@ from apps.dashboard.detection.analyzer import TrafficAnalyzer
 from apps.dashboard.detection.calibration import Calibration, RoadModel, parse_calibration
 from apps.dashboard.detection.detector import COCO_TO_CLASS, YoloOnnxDetector, decode_output, nms
 from apps.dashboard.detection.config import DetectionConfig
-from apps.dashboard.detection.tracker import Tracker
+from apps.dashboard.detection.bytetrack import ByteTracker, linear_assignment
 from apps.dashboard.detection.types import Detection
 
 W, H = 1280, 720
@@ -122,7 +122,7 @@ class DecodeTests(unittest.TestCase):
 
 class TrackerTests(unittest.TestCase):
     def test_id_tetap_untuk_objek_bergerak(self):
-        tracker = Tracker(min_hits=1)
+        tracker = ByteTracker(min_hits=1)
         ids = set()
         for i in range(10):
             tracks = tracker.update([car(100 + i * 60, 300)], i / FPS)
@@ -130,7 +130,7 @@ class TrackerTests(unittest.TestCase):
         self.assertEqual(len(ids), 1)
 
     def test_dua_objek_berlawanan_arah_tidak_tertukar(self):
-        tracker = Tracker(min_hits=1)
+        tracker = ByteTracker(min_hits=1)
         seen = {}
         for i in range(12):
             t = i / FPS
@@ -142,7 +142,7 @@ class TrackerTests(unittest.TestCase):
             self.assertEqual(len(set(ys)), 1)
 
     def test_objek_hilang_dibuang_setelah_max_age(self):
-        tracker = Tracker(min_hits=1, max_age=1.0)
+        tracker = ByteTracker(min_hits=1, max_age=1.0)
         tracker.update([car(100, 300)], 0)
         tracker.update([], 0.5)
         self.assertEqual(len(tracker.tracks), 1)
@@ -150,8 +150,84 @@ class TrackerTests(unittest.TestCase):
         self.assertEqual(len(tracker.tracks), 0)
 
     def test_belum_terkonfirmasi_tidak_dikembalikan(self):
-        tracker = Tracker(min_hits=3)
+        tracker = ByteTracker(min_hits=3)
         self.assertEqual(tracker.update([car(100, 300)], 0), [])
+
+
+class ByteTrackTests(unittest.TestCase):
+    def test_hungarian_sama_dengan_brute_force(self):
+        import itertools
+        rng = np.random.default_rng(3)
+        for n, m in [(3, 3), (2, 4), (4, 2), (5, 5), (1, 3)]:
+            for _ in range(20):
+                cost = rng.random((n, m))
+                pairs = linear_assignment(cost)
+                self.assertEqual(len(pairs), min(n, m))
+                got = sum(cost[i, j] for i, j in pairs)
+                k = min(n, m)
+                best = min(
+                    sum(cost[r, c] for r, c in zip(rows, cols))
+                    for rows in itertools.combinations(range(n), k)
+                    for cols in itertools.permutations(range(m), k)
+                )
+                self.assertAlmostEqual(got, best, places=9)
+
+    def test_deteksi_skor_rendah_mempertahankan_id(self):
+        tracker = ByteTracker(min_hits=2, high_conf=0.5, low_conf=0.1)
+        ids = set()
+        for i in range(12):
+            d = car(100 + i * 40, 300)
+            score = 0.9 if i < 5 or i > 8 else 0.25  # kendaraan "kabur" di tengah
+            tracks = tracker.update([Detection(d.box, score, d.cls)], i / FPS)
+            ids.update(tr.id for tr in tracks)
+            if 5 <= i <= 8:
+                self.assertEqual(len(tracks), 1, f"track hilang pada frame {i}")
+        self.assertEqual(len(ids), 1)
+
+    def test_skor_rendah_tidak_membuka_track_baru(self):
+        tracker = ByteTracker(min_hits=1, high_conf=0.5, low_conf=0.1)
+        d = car(200, 300)
+        self.assertEqual(tracker.update([Detection(d.box, 0.3, d.cls)], 0), [])
+        self.assertEqual(len(tracker.tracks), 0)
+
+    def test_skor_di_bawah_low_conf_diabaikan(self):
+        tracker = ByteTracker(min_hits=1, high_conf=0.5, low_conf=0.2)
+        d = car(200, 300)
+        tracker.update([Detection(d.box, 0.9, d.cls)], 0)
+        tracker.update([Detection(d.box, 0.1, d.cls)], 0.2)
+        self.assertEqual(tracker.tracks[0].missed, 1)
+
+    def test_pulih_setelah_hilang_sebentar_dengan_id_sama(self):
+        tracker = ByteTracker(min_hits=2, max_age=1.5)
+        first = set()
+        for i in range(5):
+            first.update(tr.id for tr in tracker.update([car(100 + i * 50, 300)], i / FPS))
+        for i in range(5, 8):  # hilang 3 frame
+            self.assertEqual(tracker.update([], i / FPS), [])
+        back = tracker.update([car(100 + 8 * 50, 300)], 8 / FPS)
+        self.assertEqual({tr.id for tr in back}, first)
+
+    def test_track_baru_tak_terkonfirmasi_dibuang_bila_tak_cocok(self):
+        tracker = ByteTracker(min_hits=2)
+        tracker.update([car(100, 300)], 0)
+        tracker.update([], 0.2)
+        self.assertEqual(len(tracker.tracks), 0)
+
+    def test_selang_waktu_tak_seragam(self):
+        tracker = ByteTracker(min_hits=2)
+        ids, t = set(), 0.0
+        for i, dt in enumerate([0.2, 0.2, 0.4, 0.2, 0.6, 0.2, 0.2]):
+            t += dt
+            x = 100 + t * 250  # 250 px/detik
+            ids.update(tr.id for tr in tracker.update([car(x, 300)], t))
+        self.assertEqual(len(ids), 1)
+
+    def test_kelas_ditentukan_suara_terbanyak_skor_tinggi(self):
+        tracker = ByteTracker(min_hits=1, high_conf=0.5, low_conf=0.1)
+        classes = ["mobil", "mobil", "truk", "mobil"]
+        for i, cls in enumerate(classes):
+            tracks = tracker.update([car(100 + i * 30, 300, cls=cls)], i / FPS)
+        self.assertEqual(tracks[0].cls, "mobil")
 
 
 class CalibrationTests(unittest.TestCase):
@@ -354,3 +430,88 @@ class RoiAndProviderTests(unittest.TestCase):
         self.assertEqual(seen["shape"], (360, 640))
         self.assertEqual(dets[0].box, (650, 380, 700, 430))
         self.assertEqual(area, 640.0 * 360.0)
+
+
+class ZoneTests(unittest.TestCase):
+    SQUARE = [[0.3, 0.3], [0.7, 0.3], [0.7, 0.9], [0.3, 0.9]]
+
+    def zone_cal(self, **extra):
+        from apps.dashboard.detection.calibration import parse_calibration
+        data = {**calibrated().to_dict(), "zones": [{"name": "Lajur 1", "color": "#3d8cff", "points": self.SQUARE}], **extra}
+        cal, errors = parse_calibration(data)
+        self.assertEqual(errors, {})
+        return cal
+
+    def test_validasi_zona(self):
+        from apps.dashboard.detection.calibration import parse_calibration
+        base = calibrated().to_dict()
+        bad = [
+            [{"name": "a", "color": "biru", "points": self.SQUARE}],
+            [{"name": "a", "color": "#3d8cff", "points": self.SQUARE[:2]}],
+            [{"name": "a", "color": "#3d8cff", "points": [[0.1, 0.1], [0.2, 0.2], [0.3, 0.3]]}],  # garis lurus
+            [{"name": "a", "color": "#3d8cff", "points": [[0.1, 0.1], [1.5, 0.2], [0.3, 0.3]]}],
+            [{"name": "a", "color": "#3d8cff", "points": self.SQUARE}, {"name": "A", "color": "#ff0000", "points": self.SQUARE}],
+            [{"name": "z", "color": "#3d8cff", "points": self.SQUARE}] * 9,
+        ]
+        for zones in bad:
+            cal, errors = parse_calibration({**base, "zones": zones})
+            self.assertIn("zones", errors, zones)
+
+    def test_zona_tersimpan_dan_terbaca(self):
+        from apps.dashboard.detection.calibration import from_stored
+        cal = self.zone_cal()
+        again = from_stored(cal.to_dict())
+        self.assertEqual(again.zones, cal.zones)
+        self.assertEqual(again.zones[0].bgr, (255, 140, 61))
+
+    def test_zones_only_butuh_zona(self):
+        base = calibrated().to_dict()
+        _, errors = parse_calibration({**base, "zones": [], "zones_only": True})
+        self.assertIn("zones_only", errors)
+        cal, errors = parse_calibration({**base, "zones": [{"name": "A", "color": "#3d8cff", "points": self.SQUARE}], "zones_only": True})
+        self.assertEqual(errors, {})
+        self.assertTrue(cal.detect_in_zones)
+        self.assertTrue(parse_calibration(cal.to_dict())[0].zones_only)
+
+    def test_titik_dalam_poligon(self):
+        from apps.dashboard.detection.calibration import point_in_polygon
+        pts = [(0.3, 0.3), (0.7, 0.3), (0.5, 0.9)]
+        self.assertTrue(point_in_polygon(0.5, 0.5, pts))
+        self.assertFalse(point_in_polygon(0.1, 0.5, pts))
+        self.assertFalse(point_in_polygon(0.65, 0.8, pts))
+
+    def test_waktu_tinggal_dan_statistik(self):
+        a, clock = make(self.zone_cal())
+        # mobil melaju horizontal di y=450 (0.625 tinggi) dengan 250 px/dtk; zona x 0.3..0.7 = 384..896 px
+        seen = []
+        for i in range(60):
+            t = i / FPS
+            clock.t = 1_800_000_000.0 + t
+            a.process([car(100 + 250 * t, 450)], (W, H), clock.t)
+            ov = a.overlay()[0]
+            if ov:
+                seen.append(ov[0])
+        inside = [o["dwell"] for o in seen if o["zone"] == "Lajur 1"]
+        self.assertTrue(inside)
+        self.assertAlmostEqual(max(inside), 512 / 250, delta=0.45)
+        snap = a.snapshot(clock.t)["zones"][0]
+        self.assertEqual(snap["entered"], 1)
+        self.assertEqual(snap["now"], 0)  # sudah keluar
+        self.assertAlmostEqual(snap["avg_dwell"], 512 / 250, delta=0.45)
+
+    def test_kendaraan_di_luar_zona_tidak_dihitung(self):
+        a, clock = make(self.zone_cal())
+        for i in range(30):
+            clock.t = 1_800_000_000.0 + i / FPS
+            a.process([car(100 + 20 * i / FPS, 100)], (W, H), clock.t)  # y=100 di atas zona
+        self.assertEqual(a.snapshot(clock.t)["zones"][0]["entered"], 0)
+
+    def test_ganti_zona_mengatur_ulang_statistik(self):
+        a, clock = make(self.zone_cal())
+        for i in range(10):
+            clock.t = 1_800_000_000.0 + i / FPS
+            a.process([car(500, 450)], (W, H), clock.t)
+        self.assertEqual(a.snapshot(clock.t)["zones"][0]["entered"], 1)
+        a.set_calibration(self.zone_cal(zones=[{"name": "Baru", "color": "#ff0000", "points": self.SQUARE}]))
+        snap = a.snapshot(clock.t)["zones"]
+        self.assertEqual((snap[0]["name"], snap[0]["entered"]), ("Baru", 0))

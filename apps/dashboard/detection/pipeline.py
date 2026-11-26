@@ -12,6 +12,9 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+import numpy as np
+
+from .calibration import polygon_area, zones_bbox
 from .detector import DetectorUnavailable
 from .types import Detection
 
@@ -52,6 +55,7 @@ class DetectionPipeline:
         self._thread = None
         self._status = PipelineStatus()
         self._last_save = time.monotonic()
+        self._zone_mask_key, self._zone_mask, self._zone_area = None, None, 0.0
         self._busy = False
 
     # --- siklus hidup ------------------------------------------------------
@@ -112,11 +116,12 @@ class DetectionPipeline:
         thick = max(1, round(w / 640))
         font = 0.4 + w / 2400.0
 
-        if roi:
+        if roi and not self.analyzer.calibration.detect_in_zones:
             cv2.rectangle(
                 frame, (int(roi[0][0] * w), int(roi[0][1] * h)), (int(roi[1][0] * w), int(roi[1][1] * h)),
                 (255, 200, 120), 1, cv2.LINE_AA,
             )
+        self._draw_zones(frame, cv2, thick, font)
         if line:
             p0 = (int(line[0][0] * sx), int(line[0][1] * sy))
             p1 = (int(line[1][0] * sx), int(line[1][1] * sy))
@@ -128,12 +133,33 @@ class DetectionPipeline:
             cv2.rectangle(frame, (x1, y1), (x2, y2), color, thick + 1)
             label = obj["cls"].capitalize()
             if obj["wrong"]:
-                label += " · LAWAN ARAH"
+                label += " - LAWAN ARAH"
             elif obj["speed"] is not None:
                 label += f" {round(obj['speed'])} km/j"
+            if obj.get("zone") is not None and obj.get("dwell") is not None:
+                label += " | zona " + f"{obj['dwell']:.1f}".replace(".", ",") + " dtk"  # Hershey hanya ASCII
             (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, font, 1)
             cv2.rectangle(frame, (x1, max(0, y1 - th - 6)), (x1 + tw + 6, y1), color, -1)
             cv2.putText(frame, label, (x1 + 3, max(th, y1 - 4)), cv2.FONT_HERSHEY_SIMPLEX, font, (255, 255, 255), 1, cv2.LINE_AA)
+
+    def _draw_zones(self, frame, cv2, thick, font):
+        """Isi poligon zona secara tembus pandang, garis tepi, dan nama zona."""
+        zones = self.analyzer.calibration.zones
+        if not zones:
+            return
+        h, w = frame.shape[:2]
+        polys = [np.array([[int(x * w), int(y * h)] for x, y in z.points], dtype=np.int32) for z in zones]
+        layer = frame.copy()
+        for zone, poly in zip(zones, polys):
+            cv2.fillPoly(layer, [poly], zone.bgr)
+        cv2.addWeighted(layer, 0.28, frame, 0.72, 0, frame)
+        for zone, poly in zip(zones, polys):
+            cv2.polylines(frame, [poly], True, zone.bgr, thick, cv2.LINE_AA)
+            (tw, th), _ = cv2.getTextSize(zone.name, cv2.FONT_HERSHEY_SIMPLEX, font, 1)
+            x, y = int(poly[:, 0].mean() - tw / 2), int(poly[:, 1].min()) + th + 8
+            x, y = max(2, min(x, w - tw - 8)), max(th + 4, min(y, h - 4))
+            cv2.rectangle(frame, (x - 3, y - th - 4), (x + tw + 3, y + 4), zone.bgr, -1)
+            cv2.putText(frame, zone.name, (x, y), cv2.FONT_HERSHEY_SIMPLEX, font, (255, 255, 255), 1, cv2.LINE_AA)
 
     # --- thread pekerja ---------------------------------------------------
     def _set(self, **changes):
@@ -191,7 +217,10 @@ class DetectionPipeline:
     def _detect_in_roi(self, detector, frame):
         """Jalankan detektor hanya pada area deteksi (bila diatur). Kembalikan (deteksi pada koordinat frame penuh, luas area)."""
         h, w = frame.shape[:2]
-        roi = self.analyzer.calibration.roi
+        cal = self.analyzer.calibration
+        if cal.detect_in_zones:
+            return self._detect_in_zones(detector, frame, cal)
+        roi = cal.roi
         if not roi:
             return detector.detect(frame), float(w * h)
         x0, y0 = int(roi[0][0] * w), int(roi[0][1] * h)
@@ -201,6 +230,37 @@ class DetectionPipeline:
             Detection((d.box[0] + x0, d.box[1] + y0, d.box[2] + x0, d.box[3] + y0), d.score, d.cls) for d in found
         ]
         return shifted, float((x1 - x0) * (y1 - y0))
+
+    def _detect_in_zones(self, detector, frame, cal):
+        """Deteksi hanya di dalam zona: crop ke kotak pembatas zona, tutup piksel di luar zona, saring hasilnya.
+
+        Kembalikan (deteksi pada koordinat frame penuh, luas gabungan zona dalam piksel).
+        """
+        import cv2
+
+        h, w = frame.shape[:2]
+        (nx0, ny0), (nx1, ny1) = zones_bbox(cal.zones)
+        x0, y0 = int(nx0 * w), int(ny0 * h)
+        x1, y1 = max(x0 + 2, int(nx1 * w)), max(y0 + 2, int(ny1 * h))
+        key = (cal.zones, w, h)
+        if self._zone_mask_key != key:
+            mask = np.zeros((h, w), dtype=np.uint8)
+            for z in cal.zones:
+                cv2.fillPoly(mask, [np.array([[int(px * w), int(py * h)] for px, py in z.points], dtype=np.int32)], 255)
+            self._zone_area = float(np.count_nonzero(mask))
+            grow = max(3, int(0.012 * min(w, h)))  # sisa kecil agar kendaraan di tepi zona tidak terpotong
+            mask = cv2.dilate(mask, np.ones((grow, grow), np.uint8))
+            self._zone_mask, self._zone_mask_key = mask, key
+        crop = frame[y0:y1, x0:x1].copy()
+        crop[self._zone_mask[y0:y1, x0:x1] == 0] = 114  # abu-abu netral seperti padding letterbox
+        found = detector.detect(crop)
+        kept = []
+        for d in found:
+            box = (d.box[0] + x0, d.box[1] + y0, d.box[2] + x0, d.box[3] + y0)
+            gx, gy = (box[0] + box[2]) / 2 / w, box[3] / h
+            if any(z.contains(gx, gy) for z in cal.zones):
+                kept.append(Detection(box, d.score, d.cls))
+        return kept, max(self._zone_area, 1.0)
 
     # --- penyimpanan keadaan -----------------------------------------------
     def _load_state(self):

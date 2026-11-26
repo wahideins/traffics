@@ -93,6 +93,14 @@ def reset_camera_counts(code):
     return True
 
 
+def zone_stats(code):
+    """Statistik zona kamera yang sedang berdeteksi, atau None bila deteksi belum berjalan."""
+    pipeline = get_detection_manager().get(code)
+    if pipeline is None:
+        return None
+    return pipeline.analyzer.snapshot()["zones"]
+
+
 def camera_overview():
     detection = get_detection_manager()
     rows = []

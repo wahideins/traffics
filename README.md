@@ -42,7 +42,7 @@ python tools/fake_rtsp_server.py --user cctv --password rahasia   # rtsp://127.0
 Variabel lingkungan opsional: `TRAFFICSENSE_RTSP_TRANSPORT` (tcp/udp), `TRAFFICSENSE_STREAM_MAX_WIDTH`,
 `TRAFFICSENSE_STREAM_JPEG_QUALITY`, `TRAFFICSENSE_STREAM_MAX_FPS`.
 
-Struktur tambahan deteksi: `detection/` (detector, tracker, calibration, analyzer, pipeline, manager), `runtime.py` (menyalakan stream + deteksi), `services/live_analytics.py` (angka → template).
+Struktur tambahan deteksi: `detection/` (detector, bytetrack, calibration, analyzer, pipeline, manager), `runtime.py` (menyalakan stream + deteksi), `services/live_analytics.py` (angka → template).
 
 **Keamanan (penting sebelum dipakai di luar jaringan tepercaya):**
 
@@ -64,13 +64,15 @@ Struktur tambahan deteksi: `detection/` (detector, tracker, calibration, analyze
    ```
 2. Jalankan server dengan `TRAFFICSENSE_MODEL=/jalur/yolov8n.onnx python manage.py runserver`.
    Kamera RTSP yang tersimpan langsung dinyalakan dan dihitung terus, ada atau tidak ada yang membuka dashboard.
-3. Buka kamera → **Kalibrasi**, lalu klik di atas gambar kamera:
+3. Buka **Pengaturan → Kamera → Kalibrasi** (halaman penuh), lalu klik di atas gambar kamera:
    - **Arah A**: dua titik searah lalu lintas Arah A. Garis hitung otomatis tegak lurus panah (geser posisinya dengan slider).
    - **Median** (opsional): satu titik di pemisah jalur. Sisi tempat panah berada = jalur Arah A. Tanpa median (atau centang "jalan satu arah") deteksi lawan arah mati.
    - **Jarak referensi**: dua titik di jalan beserta jarak aslinya (meter). Tanpa ini kecepatan dan pelanggaran batas tidak dihitung.
    - **Area deteksi** (opsional, sangat disarankan di CPU): dua sudut yang membingkai jalan. Hanya bagian ini yang dikirim ke model, sehingga kendaraan jauh tampil lebih besar dan langit/bangunan tidak ikut diproses.
+   - **Zona lajur** (opsional, maks. 8): gambar poligon berwarna dan beri nama (mis. "Lajur 1"). Klik sudut-sudutnya, tutup dengan klik titik pertama atau Enter; seret titik untuk menggeser, klik dua kali untuk menghapus titik. Tiap kendaraan yang titik tapaknya (tengah-bawah kotak) berada di zona diberi label "zona X,X dtk" (waktu tinggal) pada video, dan tabel di halaman kalibrasi menampilkan jumlah sekarang, jumlah masuk, rata-rata, dan terlama. Centang "Pratinjau langsung" untuk melihat video beranotasi.
+   - **Deteksi hanya di dalam zona** (opsional): model hanya melihat kotak pembatas zona dengan piksel di luar zona ditutup abu-abu, dan hanya kendaraan yang titik tapaknya berada di zona yang dihitung (garis hitung, kecepatan, dan kepadatan ikut terbatas di zona). Mengalahkan "Area deteksi". Lebih ringan di CPU karena gambar yang diproses lebih kecil.
 
-Yang dilakukan: YOLO (mobil, motor, bus, truk) → pelacak IoU → hitung saat melintas garis → kecepatan dari
+Yang dilakukan: YOLO (mobil, motor, bus, truk) → pelacak ByteTrack → hitung saat melintas garis → kecepatan dari
 perpindahan titik tapak × skala → lawan arah dari gerak berlawanan arah jalur → kepadatan dari luas kotak
 terhadap frame. Hitungan harian dan grafik disimpan di `data/analytics/` tiap 30 detik (reset tiap pergantian hari).
 
@@ -85,7 +87,7 @@ Variabel opsional: `TRAFFICSENSE_DETECT_FPS` (5), `TRAFFICSENSE_DETECT_CONF` (0,
 
 - Skala kecepatan memakai satu nilai meter-per-piksel; perspektif (jauh/dekat) membuat galat. Pilih jarak referensi di dekat garis hitung, sejajar jalan.
 - Kepadatan adalah perkiraan dari luas kotak (penuh = 30% frame), bukan okupansi jalan sebenarnya; sesuaikan `FULL_OCCUPANCY` di `detection/analyzer.py` per lokasi.
-- Pelacak sederhana: kendaraan yang saling menutup bisa tertukar atau terlewat. Untuk lalu lintas padat, ganti dengan ByteTrack (antarmuka `Tracker.update` sama).
+- Pelacak ByteTrack (`detection/bytetrack.py`, tanpa dependensi baru): deteksi berskor rendah (antara "Ambang skor rendah" dan "Ambang skor") dipakai untuk mempertahankan kendaraan yang sudah dilacak, bukan membuka track baru. Tanpa fitur penampakan (re-ID), kendaraan yang lama saling menutup tetap bisa tertukar.
 - Satu pipeline per kamera memakai CPU; naikkan `TRAFFICSENSE_DETECT_FPS` hanya bila perlu.
 - Inferensi model YOLO asli belum diuji di lingkungan pengembangan ini (tanpa berkas model dan jaringan); yang diuji adalah dekode keluaran, pelacak, dan penganalisis dengan deteksi skrip.
 

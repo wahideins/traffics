@@ -13,7 +13,6 @@ from django.views.decorators.http import require_GET, require_POST
 from .. import runtime
 from ..services import camera_admin
 from ..services.registry import get_live_camera
-from ..streaming import get_manager
 from ..streaming.mjpeg import CONTENT_TYPE, mjpeg_stream
 from .admin_panel import admin_only
 
@@ -42,8 +41,8 @@ def stream(request, code):
 def snapshot(request, code):
     """Satu frame JPEG terbaru (untuk thumbnail atau pengecekan cepat)."""
     camera = _live_camera_or_404(code)
-    reader = get_manager().get(camera.id)
-    jpeg = reader.latest_jpeg() if reader else None
+    # clean=1: tanpa kotak/zona (halaman kalibrasi). Pembaca dinyalakan bila belum jalan.
+    jpeg = runtime.snapshot_jpeg(camera, clean=bool(request.GET.get("clean")))
     if jpeg is None:
         return HttpResponse("Belum ada frame", status=503, content_type="text/plain")
     return HttpResponse(jpeg, content_type="image/jpeg")

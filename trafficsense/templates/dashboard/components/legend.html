@@ -1,6 +1,0 @@
-{# Legenda kelas kendaraan. Butuh: vehicle_classes #}
-<ul class="legend" aria-label="Legenda kelas kendaraan">
-  {% for vc in vehicle_classes %}
-  <li class="legend__item"><span class="swatch c-{{ vc.key }}"></span>{{ vc.name }}</li>
-  {% endfor %}
-</ul>

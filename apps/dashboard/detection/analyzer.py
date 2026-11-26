@@ -12,7 +12,7 @@ from datetime import datetime
 from ..services.constants import DENSITY_MACET, DENSITY_PADAT, SPEED_BINS, VEHICLE_CLASSES
 from ..services.metrics import classify_flow, density_level
 from .calibration import Calibration, RoadModel
-from .tracker import Tracker
+from .bytetrack import ByteTracker
 
 CLASS_KEYS = tuple(vc["key"] for vc in VEHICLE_CLASSES)
 CLASS_NAMES = {vc["key"]: vc["name"] for vc in VEHICLE_CLASSES}
@@ -34,14 +34,20 @@ def _empty_counts():
 
 class TrafficAnalyzer:
     def __init__(self, *, speed_limit, calibration=None, dir_a="Arah A", dir_b="Arah B",
-                 track_max_age=1.5, track_min_hits=3, full_occupancy=FULL_OCCUPANCY, clock=time.time):
+                 track_max_age=1.5, track_min_hits=3, track_high_conf=0.35, track_low_conf=0.1,
+                 full_occupancy=FULL_OCCUPANCY, clock=time.time):
         self.speed_limit = speed_limit
         self.calibration = calibration or Calibration()
         self.dir_a, self.dir_b = dir_a, dir_b
         self._clock = clock
         self._full = full_occupancy
         self._lock = threading.RLock()
-        self._tracker = Tracker(max_age=track_max_age, min_hits=track_min_hits)
+        self._max_age = track_max_age
+        self._zone_state = {}  # id track -> {zone, since, last}
+        self._zone_stats = []  # per zona: entered, dwell_sum, dwell_n, dwell_max
+        self._reset_zones()
+        self._tracker = ByteTracker(max_age=track_max_age, min_hits=track_min_hits,
+                                    high_conf=track_high_conf, low_conf=track_low_conf)
 
         self._frame_size = None
         self._frames = 0
@@ -69,6 +75,8 @@ class TrafficAnalyzer:
     # --- masukan ---------------------------------------------------------
     def set_calibration(self, calibration, *, dir_a=None, dir_b=None, speed_limit=None):
         with self._lock:
+            if calibration.zones != self.calibration.zones:
+                self._reset_zones(calibration)
             self.calibration = calibration
             if dir_a:
                 self.dir_a = dir_a
@@ -99,6 +107,7 @@ class TrafficAnalyzer:
                 self._check_wrong_way(tr, road, t)
                 tr.s_prev = s
 
+            self._update_zones(tracks, width, height, t)
             self._update_density(tracks, frame_area, t)
             self._update_live_speed(tracks, t)
             self._check_congestion(t, road)
@@ -107,11 +116,70 @@ class TrafficAnalyzer:
                     "id": tr.id, "cls": tr.cls, "box": tr.box, "speed": tr.speed_kmh,
                     "wrong": tr.wrong_flagged,
                     "speeding": tr.speed_kmh is not None and tr.speed_kmh > self.speed_limit,
+                    **self._zone_info(tr.id, t),
                 }
                 for tr in tracks
             ]
             self._frames += 1
             return tracks
+
+    # --- zona ---------------------------------------------------------------
+    def _reset_zones(self, calibration=None):
+        zones = (calibration or self.calibration).zones
+        self._zone_state = {}
+        self._zone_stats = [{"entered": 0, "sum": 0.0, "n": 0, "max": 0.0} for _ in zones]
+
+    def _finish_visit(self, state):
+        stats = self._zone_stats[state["zone"]]
+        dwell = max(0.0, state["last"] - state["since"])
+        stats["sum"] += dwell
+        stats["n"] += 1
+        stats["max"] = max(stats["max"], dwell)
+
+    def _update_zones(self, tracks, width, height, t):
+        zones = self.calibration.zones
+        if not zones:
+            return
+        seen = set()
+        for tr in tracks:
+            gx, gy = tr.ground
+            nx, ny = gx / width, gy / height
+            index = next((i for i, z in enumerate(zones) if z.contains(nx, ny)), None)
+            state = self._zone_state.get(tr.id)
+            seen.add(tr.id)
+            if state is not None and state["zone"] != index:
+                self._finish_visit(state)
+                del self._zone_state[tr.id]
+                state = None
+            if index is None:
+                continue
+            if state is None:
+                self._zone_state[tr.id] = {"zone": index, "since": t, "last": t}
+                self._zone_stats[index]["entered"] += 1
+            else:
+                state["last"] = t
+        for tid in [k for k, s in self._zone_state.items() if k not in seen and t - s["last"] > self._max_age]:
+            self._finish_visit(self._zone_state.pop(tid))
+
+    def _zone_info(self, track_id, t):
+        state = self._zone_state.get(track_id)
+        if state is None or not self.calibration.zones:
+            return {"zone": None, "dwell": None}
+        return {"zone": self.calibration.zones[state["zone"]].name, "dwell": max(0.0, t - state["since"])}
+
+    def _zones_snapshot(self):
+        out = []
+        now = {}
+        for state in self._zone_state.values():
+            now[state["zone"]] = now.get(state["zone"], 0) + 1
+        for i, zone in enumerate(self.calibration.zones):
+            stats = self._zone_stats[i] if i < len(self._zone_stats) else {"entered": 0, "sum": 0.0, "n": 0, "max": 0.0}
+            out.append({
+                "name": zone.name, "color": zone.color, "now": now.get(i, 0), "entered": stats["entered"],
+                "avg_dwell": stats["sum"] / stats["n"] if stats["n"] else None,
+                "max_dwell": stats["max"] if stats["n"] else None,
+            })
+        return out
 
     # --- keluaran --------------------------------------------------------
     def overlay(self):
@@ -168,6 +236,7 @@ class TrafficAnalyzer:
                     "max": self._speed_max if self._speed_n else None,
                     "speeding": self._speeding,
                 },
+                "zones": self._zones_snapshot(),
                 "wrong_today": self._wrong_today,
                 "wrong_active": self._last_wrong_t is not None and t - self._last_wrong_t <= WRONG_WAY_ACTIVE,
                 "events": [dict(e) for e in reversed(self._events)],  # terbaru dulu
@@ -216,6 +285,7 @@ class TrafficAnalyzer:
             self._crossings.clear()
             self._macet_since = self._ok_since = None
             self._macet_logged = False
+            self._zone_stats = [{"entered": 0, "sum": 0.0, "n": 0, "max": 0.0} for _ in self.calibration.zones]
 
     # --- penyimpanan keadaan --------------------------------------------
     def export_state(self):

@@ -2,6 +2,7 @@
 
 Akses: lihat services/admin_access.py. View hanya lapisan tipis; logika di services/admin_actions.py.
 """
+import json
 import os
 from functools import wraps
 
@@ -12,7 +13,7 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET, require_POST
 
 from ..detection.model_tools import ModelError
-from ..services import admin_actions, app_settings
+from ..services import admin_actions, app_settings, camera_admin
 from ..services.admin_access import LOGIN, OK, LoginThrottle, decide, password_matches
 
 COOKIE, SALT, SESSION_SECONDS = "ts_admin", "trafficsense-admin", 8 * 3600
@@ -87,6 +88,27 @@ def _models_view(store):
 @admin_only
 def cameras_fragment(request):
     return render(request, "dashboard/partials/admin_cameras.html", {"cameras": admin_actions.camera_overview()})
+
+
+@require_GET
+@never_cache
+@admin_only
+def calibration_page(request, code):
+    camera = camera_admin.get_live_camera(code)
+    if camera is None:
+        raise Http404("Kamera RTSP tidak ditemukan")
+    return render(request, "dashboard/admin_calibration.html", {
+        "camera": camera,
+        "calibration_json": json.dumps(camera.calibration or {}, separators=(",", ":")),
+    })
+
+
+@require_GET
+@never_cache
+@admin_only
+def zone_stats(request, code):
+    stats = admin_actions.zone_stats(code)
+    return JsonResponse({"ok": stats is not None, "zones": stats or []})
 
 
 @require_POST

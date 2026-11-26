@@ -10,9 +10,15 @@ tidak bergantung resolusi stream.
 * one_way   : jalan satu arah; kendaraan yang bergerak ke Arah B dianggap lawan arah.
 * roi       : area deteksi (dua sudut persegi). Hanya bagian ini yang dikirim ke model, jadi
               kendaraan jauh tampil lebih besar dan CPU tidak membuang tenaga pada langit/bangunan.
+* zones     : poligon lajur/zona bernama (maks 8). Waktu tinggal tiap kendaraan dihitung selama titik
+              tapaknya (tengah-bawah kotak) berada di dalam poligon.
+* zones_only: deteksi hanya di dalam zona: model hanya melihat kotak pembatas semua zona (piksel di luar
+              zona ditutup abu-abu), dan hanya kendaraan yang titik tapaknya di dalam zona yang dihitung.
+              Mengalahkan `roi`. Butuh minimal satu zona.
 * ref/ref_m : dua titik di jalan yang jarak aslinya diketahui (meter), untuk skala km/j.
 """
 import math
+import re
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
@@ -23,6 +29,61 @@ MIN_AXIS_LEN = 0.1
 MIN_REF_LEN = 0.03
 MIN_ROI_SIDE = 0.15
 REF_M_RANGE = (2.0, 500.0)
+MAX_ZONES = 8
+ZONE_POINTS = (3, 24)
+MIN_ZONE_AREA = 0.002  # luas minimum (ternormalisasi) agar zona tidak sekadar goresan
+ZONE_NAME_MAX = 30
+_COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
+
+
+@dataclass(frozen=True)
+class Zone:
+    name: str
+    color: str  # #rrggbb
+    points: Tuple[Point, ...]
+
+    def to_dict(self):
+        return {"name": self.name, "color": self.color, "points": [list(p) for p in self.points]}
+
+    def contains(self, x, y):
+        return point_in_polygon(x, y, self.points)
+
+    @property
+    def bgr(self):
+        r, g, b = (int(self.color[i:i + 2], 16) for i in (1, 3, 5))
+        return (b, g, r)
+
+
+def point_in_polygon(x, y, points):
+    """Uji titik-dalam-poligon (ray casting). Titik tepat di sisi dianggap di dalam secara tidak menentu."""
+    inside = False
+    n = len(points)
+    j = n - 1
+    for i in range(n):
+        xi, yi = points[i]
+        xj, yj = points[j]
+        if (yi > y) != (yj > y) and x < (xj - xi) * (y - yi) / (yj - yi) + xi:
+            inside = not inside
+        j = i
+    return inside
+
+
+def zones_bbox(zones, pad=0.02):
+    """Kotak pembatas semua zona (ternormalisasi, ditambah `pad` di tiap sisi, dipotong ke 0..1)."""
+    xs = [p[0] for z in zones for p in z.points]
+    ys = [p[1] for z in zones for p in z.points]
+    return (
+        (max(0.0, min(xs) - pad), max(0.0, min(ys) - pad)),
+        (min(1.0, max(xs) + pad), min(1.0, max(ys) + pad)),
+    )
+
+
+def polygon_area(points):
+    s = 0.0
+    for i, (x0, y0) in enumerate(points):
+        x1, y1 = points[(i + 1) % len(points)]
+        s += x0 * y1 - x1 * y0
+    return abs(s) / 2.0
 
 
 @dataclass(frozen=True)
@@ -34,6 +95,8 @@ class Calibration:
     ref: Optional[Tuple[Point, Point]] = None
     ref_m: Optional[float] = None
     roi: Optional[Tuple[Point, Point]] = None  # (kiri-atas, kanan-bawah), ternormalisasi
+    zones: Tuple[Zone, ...] = ()
+    zones_only: bool = False
     configured: bool = False  # False = nilai bawaan, pengguna belum mengatur
 
     def to_dict(self):
@@ -45,7 +108,13 @@ class Calibration:
             "ref": [list(p) for p in self.ref] if self.ref else None,
             "ref_m": self.ref_m,
             "roi": [list(p) for p in self.roi] if self.roi else None,
+            "zones": [z.to_dict() for z in self.zones],
+            "zones_only": self.zones_only,
         }
+
+    @property
+    def detect_in_zones(self):
+        return self.zones_only and bool(self.zones)
 
 
 def _point(value, name, errors):
@@ -58,6 +127,45 @@ def _point(value, name, errors):
         errors[name] = "Titik berada di luar gambar."
         return None
     return (x, y)
+
+
+def _parse_zones(raw, errors):
+    if not raw:
+        return ()
+    if not isinstance(raw, (list, tuple)):
+        errors["zones"] = "Data zona tidak valid."
+        return ()
+    if len(raw) > MAX_ZONES:
+        errors["zones"] = f"Maksimum {MAX_ZONES} zona."
+        return ()
+    zones, seen = [], set()
+    for index, item in enumerate(raw, start=1):
+        if not isinstance(item, dict):
+            errors["zones"] = f"Zona {index} tidak valid."
+            return ()
+        name = str(item.get("name") or f"Zona {index}").strip()[:ZONE_NAME_MAX] or f"Zona {index}"
+        if name.lower() in seen:
+            errors["zones"] = f"Nama zona \"{name}\" dipakai dua kali."
+            return ()
+        seen.add(name.lower())
+        color = str(item.get("color") or "")
+        if not _COLOR.match(color):
+            errors["zones"] = f"Warna zona \"{name}\" tidak valid."
+            return ()
+        raw_points = item.get("points")
+        if not isinstance(raw_points, (list, tuple)) or not ZONE_POINTS[0] <= len(raw_points) <= ZONE_POINTS[1]:
+            errors["zones"] = f"Zona \"{name}\" butuh {ZONE_POINTS[0]}–{ZONE_POINTS[1]} titik."
+            return ()
+        sub_errors = {}
+        points = tuple(_point(p, "p", sub_errors) for p in raw_points)
+        if sub_errors or None in points:
+            errors["zones"] = f"Titik zona \"{name}\" tidak valid."
+            return ()
+        if polygon_area(points) < MIN_ZONE_AREA:
+            errors["zones"] = f"Zona \"{name}\" terlalu kecil atau garis lurus."
+            return ()
+        zones.append(Zone(name=name, color=color.lower(), points=points))
+    return tuple(zones)
 
 
 def parse_calibration(data):
@@ -123,12 +231,17 @@ def parse_calibration(data):
         else:
             errors["roi"] = "Tandai dua sudut area deteksi."
 
+    zones = _parse_zones(data.get("zones"), errors)
+    zones_only = bool(data.get("zones_only"))
+    if zones_only and not zones and "zones" not in errors:
+        errors["zones_only"] = "Gambar minimal satu zona untuk mendeteksi hanya di dalam zona."
+
     if errors:
         return None, errors
     return (
         Calibration(
             axis=axis, line_pos=line_pos, median=median, one_way=bool(data.get("one_way")),
-            ref=ref, ref_m=ref_m, roi=roi, configured=True,
+            ref=ref, ref_m=ref_m, roi=roi, zones=zones, zones_only=zones_only, configured=True,
         ),
         {},
     )
