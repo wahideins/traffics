@@ -8,7 +8,7 @@ from apps.dashboard.detection.analyzer import TrafficAnalyzer
 from apps.dashboard.detection.calibration import Calibration, RoadModel, parse_calibration
 from apps.dashboard.detection.detector import COCO_TO_CLASS, YoloOnnxDetector, decode_output, nms
 from apps.dashboard.detection.config import DetectionConfig
-from apps.dashboard.detection.tracker import Tracker
+from apps.dashboard.detection.bytetrack import ByteTracker, linear_assignment
 from apps.dashboard.detection.types import Detection
 
 W, H = 1280, 720
@@ -122,7 +122,7 @@ class DecodeTests(unittest.TestCase):
 
 class TrackerTests(unittest.TestCase):
     def test_id_tetap_untuk_objek_bergerak(self):
-        tracker = Tracker(min_hits=1)
+        tracker = ByteTracker(min_hits=1)
         ids = set()
         for i in range(10):
             tracks = tracker.update([car(100 + i * 60, 300)], i / FPS)
@@ -130,7 +130,7 @@ class TrackerTests(unittest.TestCase):
         self.assertEqual(len(ids), 1)
 
     def test_dua_objek_berlawanan_arah_tidak_tertukar(self):
-        tracker = Tracker(min_hits=1)
+        tracker = ByteTracker(min_hits=1)
         seen = {}
         for i in range(12):
             t = i / FPS
@@ -142,7 +142,7 @@ class TrackerTests(unittest.TestCase):
             self.assertEqual(len(set(ys)), 1)
 
     def test_objek_hilang_dibuang_setelah_max_age(self):
-        tracker = Tracker(min_hits=1, max_age=1.0)
+        tracker = ByteTracker(min_hits=1, max_age=1.0)
         tracker.update([car(100, 300)], 0)
         tracker.update([], 0.5)
         self.assertEqual(len(tracker.tracks), 1)
@@ -150,8 +150,84 @@ class TrackerTests(unittest.TestCase):
         self.assertEqual(len(tracker.tracks), 0)
 
     def test_belum_terkonfirmasi_tidak_dikembalikan(self):
-        tracker = Tracker(min_hits=3)
+        tracker = ByteTracker(min_hits=3)
         self.assertEqual(tracker.update([car(100, 300)], 0), [])
+
+
+class ByteTrackTests(unittest.TestCase):
+    def test_hungarian_sama_dengan_brute_force(self):
+        import itertools
+        rng = np.random.default_rng(3)
+        for n, m in [(3, 3), (2, 4), (4, 2), (5, 5), (1, 3)]:
+            for _ in range(20):
+                cost = rng.random((n, m))
+                pairs = linear_assignment(cost)
+                self.assertEqual(len(pairs), min(n, m))
+                got = sum(cost[i, j] for i, j in pairs)
+                k = min(n, m)
+                best = min(
+                    sum(cost[r, c] for r, c in zip(rows, cols))
+                    for rows in itertools.combinations(range(n), k)
+                    for cols in itertools.permutations(range(m), k)
+                )
+                self.assertAlmostEqual(got, best, places=9)
+
+    def test_deteksi_skor_rendah_mempertahankan_id(self):
+        tracker = ByteTracker(min_hits=2, high_conf=0.5, low_conf=0.1)
+        ids = set()
+        for i in range(12):
+            d = car(100 + i * 40, 300)
+            score = 0.9 if i < 5 or i > 8 else 0.25  # kendaraan "kabur" di tengah
+            tracks = tracker.update([Detection(d.box, score, d.cls)], i / FPS)
+            ids.update(tr.id for tr in tracks)
+            if 5 <= i <= 8:
+                self.assertEqual(len(tracks), 1, f"track hilang pada frame {i}")
+        self.assertEqual(len(ids), 1)
+
+    def test_skor_rendah_tidak_membuka_track_baru(self):
+        tracker = ByteTracker(min_hits=1, high_conf=0.5, low_conf=0.1)
+        d = car(200, 300)
+        self.assertEqual(tracker.update([Detection(d.box, 0.3, d.cls)], 0), [])
+        self.assertEqual(len(tracker.tracks), 0)
+
+    def test_skor_di_bawah_low_conf_diabaikan(self):
+        tracker = ByteTracker(min_hits=1, high_conf=0.5, low_conf=0.2)
+        d = car(200, 300)
+        tracker.update([Detection(d.box, 0.9, d.cls)], 0)
+        tracker.update([Detection(d.box, 0.1, d.cls)], 0.2)
+        self.assertEqual(tracker.tracks[0].missed, 1)
+
+    def test_pulih_setelah_hilang_sebentar_dengan_id_sama(self):
+        tracker = ByteTracker(min_hits=2, max_age=1.5)
+        first = set()
+        for i in range(5):
+            first.update(tr.id for tr in tracker.update([car(100 + i * 50, 300)], i / FPS))
+        for i in range(5, 8):  # hilang 3 frame
+            self.assertEqual(tracker.update([], i / FPS), [])
+        back = tracker.update([car(100 + 8 * 50, 300)], 8 / FPS)
+        self.assertEqual({tr.id for tr in back}, first)
+
+    def test_track_baru_tak_terkonfirmasi_dibuang_bila_tak_cocok(self):
+        tracker = ByteTracker(min_hits=2)
+        tracker.update([car(100, 300)], 0)
+        tracker.update([], 0.2)
+        self.assertEqual(len(tracker.tracks), 0)
+
+    def test_selang_waktu_tak_seragam(self):
+        tracker = ByteTracker(min_hits=2)
+        ids, t = set(), 0.0
+        for i, dt in enumerate([0.2, 0.2, 0.4, 0.2, 0.6, 0.2, 0.2]):
+            t += dt
+            x = 100 + t * 250  # 250 px/detik
+            ids.update(tr.id for tr in tracker.update([car(x, 300)], t))
+        self.assertEqual(len(ids), 1)
+
+    def test_kelas_ditentukan_suara_terbanyak_skor_tinggi(self):
+        tracker = ByteTracker(min_hits=1, high_conf=0.5, low_conf=0.1)
+        classes = ["mobil", "mobil", "truk", "mobil"]
+        for i, cls in enumerate(classes):
+            tracks = tracker.update([car(100 + i * 30, 300, cls=cls)], i / FPS)
+        self.assertEqual(tracks[0].cls, "mobil")
 
 
 class CalibrationTests(unittest.TestCase):

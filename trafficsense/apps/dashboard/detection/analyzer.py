@@ -12,7 +12,7 @@ from datetime import datetime
 from ..services.constants import DENSITY_MACET, DENSITY_PADAT, SPEED_BINS, VEHICLE_CLASSES
 from ..services.metrics import classify_flow, density_level
 from .calibration import Calibration, RoadModel
-from .tracker import Tracker
+from .bytetrack import ByteTracker
 
 CLASS_KEYS = tuple(vc["key"] for vc in VEHICLE_CLASSES)
 CLASS_NAMES = {vc["key"]: vc["name"] for vc in VEHICLE_CLASSES}
@@ -34,14 +34,16 @@ def _empty_counts():
 
 class TrafficAnalyzer:
     def __init__(self, *, speed_limit, calibration=None, dir_a="Arah A", dir_b="Arah B",
-                 track_max_age=1.5, track_min_hits=3, full_occupancy=FULL_OCCUPANCY, clock=time.time):
+                 track_max_age=1.5, track_min_hits=3, track_high_conf=0.35, track_low_conf=0.1,
+                 full_occupancy=FULL_OCCUPANCY, clock=time.time):
         self.speed_limit = speed_limit
         self.calibration = calibration or Calibration()
         self.dir_a, self.dir_b = dir_a, dir_b
         self._clock = clock
         self._full = full_occupancy
         self._lock = threading.RLock()
-        self._tracker = Tracker(max_age=track_max_age, min_hits=track_min_hits)
+        self._tracker = ByteTracker(max_age=track_max_age, min_hits=track_min_hits,
+                                    high_conf=track_high_conf, low_conf=track_low_conf)
 
         self._frame_size = None
         self._frames = 0

@@ -18,6 +18,7 @@ class DetectionConfig:
     nms_iou: float = 0.5
     imgsz: int = 640  # dipakai bila model berukuran masukan dinamis
     detect_fps: float = 5.0  # batas frekuensi inferensi per kamera
+    low_conf: float = 0.1  # skor minimum deteksi yang dipakai ByteTrack untuk mempertahankan track
     track_max_age: float = 1.5  # detik; objek hilang selama ini dibuang
     track_min_hits: int = 2  # jumlah deteksi sebelum objek dihitung
     full_occupancy: float = 0.30  # luas kendaraan / luas area saat dianggap 100% padat
@@ -33,6 +34,7 @@ def load_config(base_dir=None) -> DetectionConfig:
         full_occupancy=_env("TRAFFICSENSE_FULL_OCCUPANCY", 0.30, float),
         provider=os.environ.get("TRAFFICSENSE_PROVIDER", "auto").lower(),
         conf=_env("TRAFFICSENSE_DETECT_CONF", 0.35, float),
+        low_conf=_env("TRAFFICSENSE_TRACK_LOW_CONF", 0.1, float),
         nms_iou=_env("TRAFFICSENSE_DETECT_NMS_IOU", 0.5, float),
         imgsz=_env("TRAFFICSENSE_DETECT_IMGSZ", 640, int),
         detect_fps=_env("TRAFFICSENSE_DETECT_FPS", 5.0, float),

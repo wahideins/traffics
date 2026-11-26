@@ -50,6 +50,8 @@ class DetectionManager:
                     dir_b=camera.dir_b,
                     track_max_age=self._config.track_max_age,
                     track_min_hits=self._config.track_min_hits,
+                    track_high_conf=self._config.conf,
+                    track_low_conf=self._config.low_conf,
                     full_occupancy=self._config.full_occupancy,
                 )
                 state_path = Path(self._config.state_dir) / f"{camera.id}.json" if self._config.state_dir else None

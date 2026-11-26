@@ -179,7 +179,7 @@ class YoloOnnxDetector:
         output = self._session.run(None, {self._input_name: blob[None]})[0]
         return decode_output(
             output,
-            conf=self._config.conf,
+            conf=min(self._config.conf, self._config.low_conf),  # deteksi skor rendah dipakai ByteTrack
             nms_iou=self._config.nms_iou,
             scale=scale,
             pad_x=pad_x,
