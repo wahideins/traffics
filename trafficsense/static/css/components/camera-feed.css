@@ -246,14 +246,6 @@
   font-weight: 500;
 }
 
-/* --- Sumber RTSP --- */
-.feed__source {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 12px;
-}
-
 .feed__meta {
   display: flex;
   flex-wrap: wrap;

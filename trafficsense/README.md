@@ -208,3 +208,15 @@ Tombol "Lihat klip" belum terhubung. Struktur tambahan: `services/{rtsp_url,came
 - Produksi: set `DJANGO_DEBUG=0`, `DJANGO_SECRET_KEY`, `DJANGO_ALLOWED_HOSTS`, jalankan
   `collectstatic`, dan sajikan berkas statis lewat web server atau WhiteNoise.
 - Font memakai Google Fonts (Inter, Space Grotesk); tanpa internet dipakai font sistem.
+
+## Panel admin (`/pengaturan/`)
+
+Atur model deteksi dan parameter tanpa menyunting environment:
+
+- **Model**: unggah `.onnx` (maks 400 MB), uji kecepatan di komputer ini, pakai, atau hapus. Berkas ada di `data/models/` (ubah dengan `TRAFFICSENSE_MODELS_DIR`).
+- **Parameter**: perangkat (CPU/CUDA/DirectML), ukuran masukan, ambang skor, NMS, fps deteksi, pelacakan, kepadatan, serta transport/lebar/kualitas/fps tayangan. Tersimpan di `data/settings.json`; "Kembalikan ke bawaan" menghapusnya. Menyimpan memulai ulang semua kamera.
+- **Kamera**: mulai ulang, reset hitungan, lihat kinerja (fps, ms, perangkat).
+
+Akses: bila `TRAFFICSENSE_ADMIN_PASSWORD` diatur, halaman meminta sandi (PowerShell: `$env:TRAFFICSENSE_ADMIN_PASSWORD = "..."`). Tanpa sandi, hanya bisa dibuka dari komputer server itu sendiri. Bila memakai reverse proxy di mesin yang sama, selalu atur sandi.
+
+Catatan: tambah, hapus, sambung ulang, dan kalibrasi kamera ada di halaman Pengaturan (dengan aturan akses yang sama); dashboard hanya menampilkan video dan analitik.

@@ -62,3 +62,7 @@ STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# Panel admin: pengaturan tersimpan dan folder model (di dalam data/, tidak masuk git).
+SETTINGS_PATH = Path(os.environ.get("TRAFFICSENSE_SETTINGS", BASE_DIR / "data" / "settings.json"))
+MODELS_DIR = Path(os.environ.get("TRAFFICSENSE_MODELS_DIR", BASE_DIR / "data" / "models"))

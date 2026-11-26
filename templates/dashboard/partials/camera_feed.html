@@ -42,27 +42,8 @@
 
   {% if camera.source == "rtsp" %}{% include "dashboard/partials/detection_notice.html" %}{% endif %}
 
-  <form class="feed__source" data-action="reconnect"{% if camera.source == "rtsp" %} data-reconnect-url="{% url 'dashboard:camera_reconnect' code=camera.id %}"{% endif %}>
-    <div class="field">
-      <label class="field__label" for="feed-source">Sumber RTSP</label>
-      <input class="input input--mono" id="feed-source" type="text" value="{{ camera.display_url }}" readonly spellcheck="false" autocomplete="off">
-    </div>
-    <button type="submit" class="btn btn--primary" data-reconnect-btn>Hubungkan ulang</button>
-    {% if camera.source == "rtsp" %}
-    <button type="button" class="btn btn--ghost" data-action="open-calibration"
-            data-camera-id="{{ camera.id }}" data-calibration-url="{% url 'dashboard:camera_calibration' code=camera.id %}"
-            data-calibration="{{ detection.calibration_json }}" data-camera-name="{{ camera.name }}"
-            data-dir-a="{{ camera.dir_a }}" data-dir-b="{{ camera.dir_b }}" data-snapshot-url="{% url 'dashboard:camera_snapshot' code=camera.id %}">Kalibrasi</button>
-    {% endif %}
-    {% if camera.deletable %}
-    <button type="button" class="btn btn--danger" data-action="delete-camera"
-            data-delete-url="{% url 'dashboard:camera_delete' code=camera.id %}"
-            data-camera-name="{{ camera.name }}">Hapus kamera</button>
-    {% endif %}
-  </form>
-
   <ul class="feed__meta">
-    <li>{% if camera.source == "rtsp" %}Aliran RTSP · kredensial disamarkan{% else %}Simulasi · kredensial disamarkan{% endif %}</li>
+    <li>{% if camera.source == "rtsp" %}Aliran RTSP · {{ camera.display_url }}{% else %}Simulasi{% endif %}</li>
     <li>Batas kecepatan {{ camera.speed_limit }} km/j</li>
   </ul>
 </section>

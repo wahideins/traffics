@@ -5,9 +5,10 @@ kamera, dan autostart saat server hidup.
 """
 import logging
 
-from .detection.manager import get_detection_manager
+from .detection.manager import get_detection_manager, reset_detection_manager
 from .services.registry import list_cameras
 from .streaming import get_manager
+from .streaming.manager import reset_manager
 
 LOG = logging.getLogger(__name__)
 
@@ -44,3 +45,13 @@ def start_all():
             except Exception:  # noqa: BLE001
                 LOG.exception("Gagal menyalakan kamera %s", camera.id)
     return started
+
+
+def restart_all():
+    """Hentikan semua pembaca dan pipeline, lalu nyalakan lagi dengan pengaturan terbaru.
+
+    Hitungan harian tetap aman: pipeline menyimpan keadaannya saat berhenti dan memulihkannya saat mulai.
+    """
+    reset_detection_manager()
+    reset_manager()
+    return start_all()

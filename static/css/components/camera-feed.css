@@ -214,6 +214,11 @@
   line-height: 1.5;
 }
 
+.feed__stats {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
 .feed__alert--info {
   background: var(--hud-bg);
   color: #ffffff;
@@ -239,14 +244,6 @@
   color: #ffffff;
   font-size: 14px;
   font-weight: 500;
-}
-
-/* --- Sumber RTSP --- */
-.feed__source {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 12px;
 }
 
 .feed__meta {

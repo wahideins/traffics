@@ -34,11 +34,12 @@ def _empty_counts():
 
 class TrafficAnalyzer:
     def __init__(self, *, speed_limit, calibration=None, dir_a="Arah A", dir_b="Arah B",
-                 track_max_age=1.5, track_min_hits=3, clock=time.time):
+                 track_max_age=1.5, track_min_hits=3, full_occupancy=FULL_OCCUPANCY, clock=time.time):
         self.speed_limit = speed_limit
         self.calibration = calibration or Calibration()
         self.dir_a, self.dir_b = dir_a, dir_b
         self._clock = clock
+        self._full = full_occupancy
         self._lock = threading.RLock()
         self._tracker = Tracker(max_age=track_max_age, min_hits=track_min_hits)
 
@@ -76,7 +77,7 @@ class TrafficAnalyzer:
             if speed_limit:
                 self.speed_limit = speed_limit
 
-    def process(self, detections, frame_size, t=None):
+    def process(self, detections, frame_size, t=None, area=None):
         """Proses deteksi satu frame. `frame_size`: (lebar, tinggi). Kembalikan track terkonfirmasi."""
         with self._lock:
             t = self._clock() if t is None else t
@@ -86,7 +87,7 @@ class TrafficAnalyzer:
             road = RoadModel(self.calibration, width, height)
 
             tracks = self._tracker.update(detections, t)
-            frame_area = float(width * height)
+            frame_area = float(area) if area else float(width * height)  # luas area deteksi bila ada
 
             for tr in tracks:
                 gx, gy = tr.ground
@@ -201,6 +202,20 @@ class TrafficAnalyzer:
                     {"classes": classes, "total": sum(classes.values()), "density": d_sum / d_n if d_n else None}
                 )
             return result
+
+    def reset(self):
+        """Hapus hitungan, grafik, dan kejadian (pelacak dibiarkan agar kendaraan di layar tetap terlacak)."""
+        with self._lock:
+            self._counts = _empty_counts()
+            self._hist = [0] * len(SPEED_BINS)
+            self._speed_sum, self._speed_n, self._speed_max = 0.0, 0, 0.0
+            self._speeding = 0
+            self._wrong_today = 0
+            self._events.clear()
+            self._buckets.clear()
+            self._crossings.clear()
+            self._macet_since = self._ok_since = None
+            self._macet_logged = False
 
     # --- penyimpanan keadaan --------------------------------------------
     def export_state(self):
@@ -368,11 +383,11 @@ class TrafficAnalyzer:
 
     def _update_density(self, tracks, frame_area, t):
         total = sum(tr.area for tr in tracks)
-        raw = min(100.0, total / (frame_area * FULL_OCCUPANCY) * 100.0)
+        raw = min(100.0, total / (frame_area * self._full) * 100.0)
         self._density = raw if self._frames == 0 else 0.7 * self._density + 0.3 * raw
         for key in ("a", "b"):
             area = sum(tr.area for tr in tracks if getattr(tr, "direction", None) == key)
-            raw_dir = min(100.0, area / (frame_area * FULL_OCCUPANCY / 2) * 100.0)
+            raw_dir = min(100.0, area / (frame_area * self._full / 2) * 100.0)
             self._dir_density[key] = 0.7 * self._dir_density[key] + 0.3 * raw_dir
         bucket = self._bucket(t)
         bucket["d"][0] += self._density

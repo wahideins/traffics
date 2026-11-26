@@ -20,11 +20,15 @@
         <button type="button" class="cal-step" data-cal-tool="ref">
           <strong>3. Jarak referensi</strong><span>Klik dua titik di jalan yang jaraknya Anda ketahui</span>
         </button>
+        <button type="button" class="cal-step" data-cal-tool="roi">
+          <strong>4. Area deteksi</strong><span>Opsional: klik dua sudut yang membingkai jalan saja. Lebih cepat dan kendaraan jauh lebih terdeteksi</span>
+        </button>
       </div>
 
       <div class="cal-stage" data-cal-stage>
         <img class="cal-stage__img" data-cal-img alt="Tangkapan layar kamera untuk kalibrasi" draggable="false">
         <svg class="cal-stage__svg" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true">
+          <rect data-cal-roi class="cal-roi" visibility="hidden"/>
           <line data-cal-line="axis" class="cal-line cal-line--axis"/>
           <line data-cal-line="count" class="cal-line cal-line--count"/>
           <line data-cal-line="ref" class="cal-line cal-line--ref"/>

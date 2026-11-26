@@ -3,7 +3,7 @@
 
 .cal-steps {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -49,6 +49,14 @@
   pointer-events: none;
 }
 
+.cal-roi {
+  fill: rgba(61, 140, 255, 0.10);
+  stroke: #7cc4ff;
+  stroke-width: 2;
+  stroke-dasharray: 4 3;
+  vector-effect: non-scaling-stroke;
+}
+
 .cal-line { stroke-width: 3; vector-effect: non-scaling-stroke; stroke-linecap: round; }
 .cal-line--axis { stroke: #3ddc97; }
 .cal-line--count { stroke: #ffffff; stroke-dasharray: 8 6; }
@@ -69,6 +77,7 @@
 .cal-marker--axis { background: #3ddc97; }
 .cal-marker--median { background: #ef4444; border-radius: 3px; }
 .cal-marker--ref { background: #f5a524; }
+.cal-marker--roi { background: #7cc4ff; border-radius: 2px; }
 
 .cal-stage__msg {
   position: absolute;

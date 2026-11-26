@@ -1,4 +1,4 @@
-# TrafficSense — Dashboard analitik lalu lintas CCTV 
+# TrafficSense — Dashboard analitik lalu lintas CCTV (front-end)
 
 Dashboard memakai Django. Status tahap ini:
 
@@ -68,10 +68,15 @@ Struktur tambahan deteksi: `detection/` (detector, tracker, calibration, analyze
    - **Arah A**: dua titik searah lalu lintas Arah A. Garis hitung otomatis tegak lurus panah (geser posisinya dengan slider).
    - **Median** (opsional): satu titik di pemisah jalur. Sisi tempat panah berada = jalur Arah A. Tanpa median (atau centang "jalan satu arah") deteksi lawan arah mati.
    - **Jarak referensi**: dua titik di jalan beserta jarak aslinya (meter). Tanpa ini kecepatan dan pelanggaran batas tidak dihitung.
+   - **Area deteksi** (opsional, sangat disarankan di CPU): dua sudut yang membingkai jalan. Hanya bagian ini yang dikirim ke model, sehingga kendaraan jauh tampil lebih besar dan langit/bangunan tidak ikut diproses.
 
 Yang dilakukan: YOLO (mobil, motor, bus, truk) → pelacak IoU → hitung saat melintas garis → kecepatan dari
 perpindahan titik tapak × skala → lawan arah dari gerak berlawanan arah jalur → kepadatan dari luas kotak
 terhadap frame. Hitungan harian dan grafik disimpan di `data/analytics/` tiap 30 detik (reset tiap pergantian hari).
+
+Perangkat keras: `TRAFFICSENSE_PROVIDER` = `auto` (bawaan: CUDA, lalu DirectML, lalu CPU) / `cpu` / `cuda` / `dml`.
+Untuk GPU di Windows, ganti paket: `pip uninstall onnxruntime` lalu `pip install onnxruntime-directml` (GPU apa pun yang mendukung DirectX 12)
+atau `onnxruntime-gpu` (NVIDIA + CUDA). Status dan waktu inferensi tampil di bawah video ("Deteksi: x fps · y ms · CPU/DML/CUDA").
 
 Variabel opsional: `TRAFFICSENSE_DETECT_FPS` (5), `TRAFFICSENSE_DETECT_CONF` (0,35),
 `TRAFFICSENSE_AUTOSTART=0` (jangan menyalakan kamera saat server hidup), `TRAFFICSENSE_STATE_DIR`.
@@ -203,3 +208,15 @@ Tombol "Lihat klip" belum terhubung. Struktur tambahan: `services/{rtsp_url,came
 - Produksi: set `DJANGO_DEBUG=0`, `DJANGO_SECRET_KEY`, `DJANGO_ALLOWED_HOSTS`, jalankan
   `collectstatic`, dan sajikan berkas statis lewat web server atau WhiteNoise.
 - Font memakai Google Fonts (Inter, Space Grotesk); tanpa internet dipakai font sistem.
+
+## Panel admin (`/pengaturan/`)
+
+Atur model deteksi dan parameter tanpa menyunting environment:
+
+- **Model**: unggah `.onnx` (maks 400 MB), uji kecepatan di komputer ini, pakai, atau hapus. Berkas ada di `data/models/` (ubah dengan `TRAFFICSENSE_MODELS_DIR`).
+- **Parameter**: perangkat (CPU/CUDA/DirectML), ukuran masukan, ambang skor, NMS, fps deteksi, pelacakan, kepadatan, serta transport/lebar/kualitas/fps tayangan. Tersimpan di `data/settings.json`; "Kembalikan ke bawaan" menghapusnya. Menyimpan memulai ulang semua kamera.
+- **Kamera**: mulai ulang, reset hitungan, lihat kinerja (fps, ms, perangkat).
+
+Akses: bila `TRAFFICSENSE_ADMIN_PASSWORD` diatur, halaman meminta sandi (PowerShell: `$env:TRAFFICSENSE_ADMIN_PASSWORD = "..."`). Tanpa sandi, hanya bisa dibuka dari komputer server itu sendiri. Bila memakai reverse proxy di mesin yang sama, selalu atur sandi.
+
+Catatan: tambah, hapus, sambung ulang, dan kalibrasi kamera ada di halaman Pengaturan (dengan aturan akses yang sama); dashboard hanya menampilkan video dan analitik.

@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .detector import DetectorUnavailable
+from .types import Detection
 
 LOG = logging.getLogger(__name__)
 
@@ -32,6 +33,7 @@ class PipelineStatus:
     message: str = ""
     infer_ms: float = 0.0
     fps: float = 0.0
+    provider: str = ""
 
 
 class DetectionPipeline:
@@ -103,11 +105,18 @@ class DetectionPipeline:
             return
         import cv2
 
+        roi = self.analyzer.calibration.roi
+
         h, w = frame.shape[:2]
         sx, sy = w / size[0], h / size[1]
         thick = max(1, round(w / 640))
         font = 0.4 + w / 2400.0
 
+        if roi:
+            cv2.rectangle(
+                frame, (int(roi[0][0] * w), int(roi[0][1] * h)), (int(roi[1][0] * w), int(roi[1][1] * h)),
+                (255, 200, 120), 1, cv2.LINE_AA,
+            )
         if line:
             p0 = (int(line[0][0] * sx), int(line[0][1] * sy))
             p1 = (int(line[1][0] * sx), int(line[1][1] * sy))
@@ -143,7 +152,7 @@ class DetectionPipeline:
             LOG.exception("Kamera %s: gagal membuat detektor", self.code)
             self._set(state=UNAVAILABLE, message="Detektor gagal dimuat. Lihat log server.")
             return
-        self._set(state=RUNNING)
+        self._set(state=RUNNING, provider=getattr(detector, "provider", ""))
 
         errors = 0
         window_start, window_n = time.monotonic(), 0
@@ -157,8 +166,8 @@ class DetectionPipeline:
                 self._busy = True
             try:
                 started = time.monotonic()
-                detections = detector.detect(frame)
-                self.analyzer.process(detections, (frame.shape[1], frame.shape[0]), t)
+                detections, area = self._detect_in_roi(detector, frame)
+                self.analyzer.process(detections, (frame.shape[1], frame.shape[0]), t, area=area)
                 elapsed = (time.monotonic() - started) * 1000
                 errors = 0
                 window_n += 1
@@ -178,6 +187,20 @@ class DetectionPipeline:
                     self._busy = False
             if time.monotonic() - self._last_save >= SAVE_INTERVAL:
                 self._save_state()
+
+    def _detect_in_roi(self, detector, frame):
+        """Jalankan detektor hanya pada area deteksi (bila diatur). Kembalikan (deteksi pada koordinat frame penuh, luas area)."""
+        h, w = frame.shape[:2]
+        roi = self.analyzer.calibration.roi
+        if not roi:
+            return detector.detect(frame), float(w * h)
+        x0, y0 = int(roi[0][0] * w), int(roi[0][1] * h)
+        x1, y1 = max(x0 + 1, int(roi[1][0] * w)), max(y0 + 1, int(roi[1][1] * h))
+        found = detector.detect(frame[y0:y1, x0:x1])
+        shifted = [
+            Detection((d.box[0] + x0, d.box[1] + y0, d.box[2] + x0, d.box[3] + y0), d.score, d.cls) for d in found
+        ]
+        return shifted, float((x1 - x0) * (y1 - y0))
 
     # --- penyimpanan keadaan -----------------------------------------------
     def _load_state(self):
@@ -200,6 +223,9 @@ class DetectionPipeline:
             os.replace(tmp, self._state_path)
         except OSError:
             LOG.exception("Kamera %s: gagal menyimpan keadaan analitik", self.code)
+
+    def save_now(self):
+        self._save_state()
 
     def delete_state(self):
         if self._state_path is not None:

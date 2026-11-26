@@ -11,7 +11,7 @@
   {% include "dashboard/partials/camera_tabs.html" %}
 
   <div class="app-header__side">
-    <button type="button" class="btn btn--ghost btn--icon" data-action="open-add-camera">{% include "includes/icon.html" with name="plus" size=18 %}Tambah kamera</button>
+    <a class="btn btn--ghost btn--icon" href="{% url 'dashboard:admin_panel' %}">Pengaturan</a>
     <span class="pill">Kamera demo: data simulasi</span>
     <div class="clock">
       <div class="clock__time" data-clock>{% now "H:i:s" %}</div>

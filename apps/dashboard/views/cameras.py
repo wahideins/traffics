@@ -1,5 +1,7 @@
 """View kamera: video MJPEG, tes koneksi, tambah, hapus, sambung ulang.
 
+Tombol yang mengubah kamera (tambah/hapus/kalibrasi/dll.) dijaga admin_only; menonton tidak.
+
 Django hanya lapisan tipis; logikanya ada di services/camera_admin.py dan streaming/.
 """
 import json
@@ -13,6 +15,7 @@ from ..services import camera_admin
 from ..services.registry import get_live_camera
 from ..streaming import get_manager
 from ..streaming.mjpeg import CONTENT_TYPE, mjpeg_stream
+from .admin_panel import admin_only
 
 
 def _live_camera_or_404(code):
@@ -47,12 +50,14 @@ def snapshot(request, code):
 
 
 @require_POST
+@admin_only
 def probe(request):
     """Tes koneksi dari isian form (belum menyimpan apa pun)."""
     return JsonResponse(camera_admin.probe_camera(request.POST))
 
 
 @require_POST
+@admin_only
 def add(request):
     camera, errors = camera_admin.create_camera(request.POST)
     if errors:
@@ -61,6 +66,7 @@ def add(request):
 
 
 @require_POST
+@admin_only
 def reconnect(request, code):
     if not camera_admin.reconnect_camera(code):
         raise Http404("Kamera RTSP tidak ditemukan")
@@ -68,6 +74,7 @@ def reconnect(request, code):
 
 
 @require_POST
+@admin_only
 def delete(request, code):
     if not camera_admin.delete_camera(code):
         raise Http404("Kamera RTSP tidak ditemukan")
@@ -75,6 +82,7 @@ def delete(request, code):
 
 
 @require_POST
+@admin_only
 def calibration(request, code):
     """Simpan kalibrasi (JSON): arah, garis hitung, median, skala."""
     try:

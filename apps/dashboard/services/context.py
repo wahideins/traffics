@@ -283,5 +283,6 @@ def _detection_view(camera, status, snapshot):
         "calibration_json": json.dumps(camera.calibration, separators=(",", ":")) if camera.calibration else "",
         "calibrated": calibrated,
         "infer_ms": round(status.infer_ms),
-        "fps": f"{status.fps:.0f}" if status.fps else "",
+        "fps": f"{status.fps:.1f}".replace(".", ",") if status.fps else "",
+        "provider": (status.provider or "").upper(),
     }

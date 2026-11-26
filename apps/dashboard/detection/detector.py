@@ -135,6 +135,10 @@ class YoloOnnxDetector:
     def __init__(self, config: DetectionConfig, session=None):
         self._config = config
         self._session = session if session is not None else self._open_session(config.model_path)
+        try:
+            self.provider = self._session.get_providers()[0].replace("ExecutionProvider", "").lower() or "cpu"
+        except (AttributeError, IndexError):
+            self.provider = "cpu"
         inp = self._session.get_inputs()[0]
         self._input_name = inp.name
         shape = inp.shape  # [1, 3, H, W]; bisa dinamis (string/None)
@@ -142,8 +146,17 @@ class YoloOnnxDetector:
         w = shape[3] if isinstance(shape[3], int) else config.imgsz
         self._size = (int(w), int(h))
 
+    provider = "cpu"
+
     @staticmethod
-    def _open_session(path):
+    def _choose_providers(available, preference):
+        """Urutan penyedia eksekusi ONNX: GPU bila ada (auto), selalu CPU sebagai cadangan."""
+        table = {"cuda": "CUDAExecutionProvider", "dml": "DmlExecutionProvider", "cpu": "CPUExecutionProvider"}
+        order = ["cuda", "dml", "cpu"] if preference == "auto" else [preference, "cpu"]
+        chosen = list(dict.fromkeys(table[k] for k in order if k in table and table[k] in available))
+        return chosen or ["CPUExecutionProvider"]
+
+    def _open_session(self, path):
         if not path:
             raise DetectorUnavailable("Model deteksi belum diatur (variabel TRAFFICSENSE_MODEL).")
         try:
@@ -151,7 +164,10 @@ class YoloOnnxDetector:
         except ImportError as exc:
             raise DetectorUnavailable("Pustaka onnxruntime belum terpasang.") from exc
         try:
-            return ort.InferenceSession(path, providers=["CPUExecutionProvider"])
+            providers = self._choose_providers(ort.get_available_providers(), self._config.provider)
+            options = ort.SessionOptions()
+            options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+            return ort.InferenceSession(path, sess_options=options, providers=providers)
         except Exception as exc:  # noqa: BLE001 - berkas hilang/rusak
             LOG.error("Gagal memuat model %s: %s", path, exc)
             raise DetectorUnavailable("Model deteksi tidak dapat dimuat. Periksa jalur dan formatnya.") from exc

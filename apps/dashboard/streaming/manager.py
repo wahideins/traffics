@@ -6,6 +6,15 @@ from .config import StreamConfig, load_config
 from .reader import RtspReader
 
 
+def _effective_config():
+    try:
+        from ..services import app_settings
+
+        return app_settings.effective_stream_config()
+    except ImportError:  # modul streaming dipakai tanpa aplikasi dashboard
+        return load_config()
+
+
 class StreamManager:
     """Satu RtspReader per kamera. Reader dimulai saat ada yang menonton dan
     dihentikan otomatis bila tak ada penonton selama `idle_stop_seconds`,
@@ -13,7 +22,7 @@ class StreamManager:
     """
 
     def __init__(self, config=None, *, reader_factory=RtspReader, reap_interval=5.0):
-        self._config = config or load_config()
+        self._config = config or _effective_config()
         self._reader_factory = reader_factory
         self._readers = {}
         self._urls = {}
@@ -104,6 +113,15 @@ class StreamManager:
 
 _manager = None
 _manager_lock = threading.Lock()
+
+
+def reset_manager():
+    """Hentikan semua pembaca dan buang singleton (dipakai saat pengaturan stream berubah)."""
+    global _manager
+    with _manager_lock:
+        old, _manager = _manager, None
+    if old is not None:
+        old.shutdown()
 
 
 def get_manager() -> StreamManager:

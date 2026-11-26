@@ -116,3 +116,53 @@ class CalibrationViewTests(CameraViewTests):
         response = self.client.get(reverse("dashboard:panel", kwargs={"name": "detection_notice"}) + "?camera=CAM-04")
         self.assertContains(response, 'data-panel="detection_notice"')
         self.assertContains(response, "Deteksi belum aktif")  # tanpa TRAFFICSENSE_MODEL pada tes
+
+
+class AdminGateTests(CameraViewTests):
+    """Aksi yang mengubah kamera dan panel pengaturan dijaga sandi/localhost."""
+
+    def _with_password(self):
+        from unittest import mock
+        patcher = mock.patch.dict("os.environ", {"TRAFFICSENSE_ADMIN_PASSWORD": "sandi-uji"})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_tambah_ditolak_401_tanpa_login_bila_ada_sandi(self):
+        self._with_password()
+        self.assertEqual(self._add().status_code, 401)
+
+    def test_login_lalu_tambah_berhasil(self):
+        self._with_password()
+        bad = self.client.post(reverse("dashboard:admin_login"), {"password": "salah"}, HTTP_X_CSRFTOKEN=self.token)
+        self.assertEqual(bad.status_code, 401)
+        ok = self.client.post(reverse("dashboard:admin_login"), {"password": "sandi-uji"}, HTTP_X_CSRFTOKEN=self.token)
+        self.assertEqual(ok.status_code, 302)
+        self.assertEqual(self._add().status_code, 200)
+
+    def test_panel_butuh_login_bila_ada_sandi(self):
+        self._with_password()
+        self.assertEqual(self.client.get(reverse("dashboard:admin_panel")).status_code, 401)
+
+    def test_non_lokal_tanpa_sandi_ditolak_403(self):
+        response = self.client.get(reverse("dashboard:admin_panel"), REMOTE_ADDR="192.168.1.20")
+        self.assertEqual(response.status_code, 403)
+
+    def test_lokal_tanpa_sandi_boleh(self):
+        self.assertEqual(self.client.get(reverse("dashboard:admin_panel")).status_code, 200)
+
+    def test_menonton_tetap_terbuka(self):
+        self._with_password()
+        self.assertEqual(self.client.get(reverse("dashboard:camera_snapshot", kwargs={"code": "CAM-99"})).status_code, 404)
+
+
+class DashboardReadOnlyTests(CameraViewTests):
+    def test_dashboard_tanpa_kontrol_kelola_kamera(self):
+        html = self.client.get(reverse("dashboard:index")).content.decode()
+        for marker in ("open-add-camera", "open-calibration", "delete-camera", "add-camera-dialog", "calibration-dialog"):
+            self.assertNotIn(marker, html)
+        self.assertIn(reverse("dashboard:admin_panel"), html)
+
+    def test_halaman_pengaturan_memuat_kontrol_kamera(self):
+        html = self.client.get(reverse("dashboard:admin_panel")).content.decode()
+        self.assertIn("open-add-camera", html)
+        self.assertIn("calibration-dialog", html)

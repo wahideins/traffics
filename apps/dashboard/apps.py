@@ -9,9 +9,10 @@ class DashboardConfig(AppConfig):
     def ready(self):
         from django.conf import settings
 
-        from .services import registry
+        from .services import app_settings, registry
 
         registry.configure(settings.CAMERA_STORE_PATH)
+        app_settings.configure(settings.SETTINGS_PATH, settings.MODELS_DIR)
 
         # Kamera berdeteksi dihidupkan sejak server berjalan agar penghitungan tak bergantung penonton.
         # `runserver` memakai proses induk + proses anak (reloader): hanya anak (RUN_MAIN) yang menyalakan.

@@ -8,6 +8,8 @@ tidak bergantung resolusi stream.
 * median    : satu titik di pemisah jalur. Sisi tempat panah berada = jalur Arah A;
               sisi seberangnya = jalur Arah B. Dipakai untuk deteksi lawan arah.
 * one_way   : jalan satu arah; kendaraan yang bergerak ke Arah B dianggap lawan arah.
+* roi       : area deteksi (dua sudut persegi). Hanya bagian ini yang dikirim ke model, jadi
+              kendaraan jauh tampil lebih besar dan CPU tidak membuang tenaga pada langit/bangunan.
 * ref/ref_m : dua titik di jalan yang jarak aslinya diketahui (meter), untuk skala km/j.
 """
 import math
@@ -19,6 +21,7 @@ Point = Tuple[float, float]
 DEFAULT_AXIS = ((0.1, 0.5), (0.9, 0.5))  # kiri -> kanan, sama dengan demo
 MIN_AXIS_LEN = 0.1
 MIN_REF_LEN = 0.03
+MIN_ROI_SIDE = 0.15
 REF_M_RANGE = (2.0, 500.0)
 
 
@@ -30,6 +33,7 @@ class Calibration:
     one_way: bool = False
     ref: Optional[Tuple[Point, Point]] = None
     ref_m: Optional[float] = None
+    roi: Optional[Tuple[Point, Point]] = None  # (kiri-atas, kanan-bawah), ternormalisasi
     configured: bool = False  # False = nilai bawaan, pengguna belum mengatur
 
     def to_dict(self):
@@ -40,6 +44,7 @@ class Calibration:
             "one_way": self.one_way,
             "ref": [list(p) for p in self.ref] if self.ref else None,
             "ref_m": self.ref_m,
+            "roi": [list(p) for p in self.roi] if self.roi else None,
         }
 
 
@@ -103,12 +108,27 @@ def parse_calibration(data):
         except (TypeError, ValueError):
             errors["ref_m"] = f"Jarak asli {REF_M_RANGE[0]:.0f}–{REF_M_RANGE[1]:.0f} meter."
 
+    roi = None
+    raw_roi = data.get("roi")
+    if raw_roi:
+        if isinstance(raw_roi, (list, tuple)) and len(raw_roi) == 2:
+            r0, r1 = _point(raw_roi[0], "roi", errors), _point(raw_roi[1], "roi", errors)
+            if r0 and r1:
+                left, right = sorted((r0[0], r1[0]))
+                top, bottom = sorted((r0[1], r1[1]))
+                if right - left < MIN_ROI_SIDE or bottom - top < MIN_ROI_SIDE:
+                    errors["roi"] = "Area deteksi terlalu kecil. Tarik dari sudut ke sudut yang berlawanan."
+                else:
+                    roi = ((left, top), (right, bottom))
+        else:
+            errors["roi"] = "Tandai dua sudut area deteksi."
+
     if errors:
         return None, errors
     return (
         Calibration(
             axis=axis, line_pos=line_pos, median=median, one_way=bool(data.get("one_way")),
-            ref=ref, ref_m=ref_m, configured=True,
+            ref=ref, ref_m=ref_m, roi=roi, configured=True,
         ),
         {},
     )

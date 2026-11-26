@@ -2,12 +2,13 @@
 import { postForm } from "../api.js";
 import { qs, qsa } from "../utils/dom.js";
 
-const TOOLS = { axis: 2, median: 1, ref: 2 };
-const NEXT = { axis: "median", median: "ref", ref: "ref" };
+const TOOLS = { axis: 2, median: 1, ref: 2, roi: 2 };
+const NEXT = { axis: "median", median: "ref", ref: "roi", roi: "roi" };
 const TOOL_HINT = {
   axis: "Klik titik awal, lalu titik akhir, searah lalu lintas Arah A.",
   median: "Klik satu titik di pemisah jalur (lewati bila jalan tanpa median).",
   ref: "Klik dua titik di jalan yang jarak aslinya Anda ketahui, lalu isi jaraknya.",
+  roi: "Klik dua sudut berlawanan untuk membingkai area jalan (lewati untuk memakai seluruh gambar).",
 };
 
 const saved = new Map(); // kalibrasi terbaru per kamera (halaman tidak memuat ulang panel)
@@ -17,7 +18,7 @@ const dialog = () => document.getElementById("calibration-dialog");
 const stage = () => qs("[data-cal-stage]", dialog());
 
 function fresh() {
-  return { tool: "axis", axis: [], median: null, ref: [], line_pos: 0.5, one_way: false, ref_m: "" };
+  return { tool: "axis", axis: [], median: null, ref: [], roi: [], line_pos: 0.5, one_way: false, ref_m: "" };
 }
 
 function fromStored(data) {
@@ -26,6 +27,7 @@ function fromStored(data) {
   state.axis = (data.axis || []).map((p) => [p[0], p[1]]);
   state.median = data.median ? [data.median[0], data.median[1]] : null;
   state.ref = (data.ref || []).map((p) => [p[0], p[1]]);
+  state.roi = (data.roi || []).map((p) => [p[0], p[1]]);
   state.line_pos = data.line_pos ?? 0.5;
   state.one_way = Boolean(data.one_way);
   state.ref_m = data.ref_m ? String(data.ref_m).replace(".", ",") : "";
@@ -69,6 +71,17 @@ function render() {
   const rect = stage().getBoundingClientRect();
   setLine("axis", s.axis[0], s.axis[1]);
   setLine("ref", s.ref[0], s.ref[1]);
+  const roiEl = qs("[data-cal-roi]", dialog());
+  if (s.roi.length === 2) {
+    const [a, b] = s.roi;
+    roiEl.setAttribute("visibility", "visible");
+    roiEl.setAttribute("x", Math.min(a[0], b[0]));
+    roiEl.setAttribute("y", Math.min(a[1], b[1]));
+    roiEl.setAttribute("width", Math.abs(a[0] - b[0]));
+    roiEl.setAttribute("height", Math.abs(a[1] - b[1]));
+  } else {
+    roiEl.setAttribute("visibility", "hidden");
+  }
   if (s.axis.length === 2) {
     const [a, b] = countLine(s.axis, s.line_pos, rect);
     setLine("count", a, b);
@@ -89,6 +102,7 @@ function render() {
   s.axis.forEach((p, i) => add(p, "axis", i === 0 ? "Awal Arah A" : "Akhir Arah A"));
   if (s.median) add(s.median, "median", "Median");
   s.ref.forEach((p, i) => add(p, "ref", `Referensi ${i + 1}`));
+  s.roi.forEach((p, i) => add(p, "roi", `Sudut area ${i + 1}`));
 
   qsa("[data-cal-tool]", dialog()).forEach((button) => {
     const tool = button.dataset.calTool;
@@ -162,6 +176,7 @@ function open(button) {
 async function save() {
   const s = current;
   const payload = { axis: s.axis, line_pos: s.line_pos, one_way: s.one_way };
+  if (s.roi.length) payload.roi = s.roi;
   if (s.median) payload.median = s.median;
   if (s.ref.length || s.ref_m) {
     payload.ref = s.ref;

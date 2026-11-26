@@ -37,10 +37,8 @@
     <div class="col col--full">{% include "dashboard/partials/events_log.html" %}</div>
   </div>
 
-  <p class="footnote">CAM-01 sampai CAM-03 adalah kamera demo dengan data simulasi. Kamera RTSP yang Anda tambahkan menampilkan video sungguhan; hitungan dan analitiknya berasal dari deteksi (butuh model, lihat README).</p>
+  <p class="footnote">CAM-01 sampai CAM-03 adalah kamera demo dengan data simulasi. Kamera RTSP ditambah dan dikalibrasi di halaman Pengaturan; dashboard menampilkan video sungguhan; hitungan dan analitiknya berasal dari deteksi (butuh model, lihat README).</p>
 </main>
-{% include "dashboard/partials/add_camera_dialog.html" %}
-{% include "dashboard/partials/calibration_dialog.html" %}
 {% endblock %}
 
 {% block scripts %}

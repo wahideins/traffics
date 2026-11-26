@@ -3,4 +3,7 @@
   {% if detection and detection.notice %}
   <p class="feed__notice" role="status">{{ detection.notice }}</p>
   {% endif %}
+  {% if detection and detection.fps %}
+  <p class="feed__stats">Deteksi: {{ detection.fps }} fps · {{ detection.infer_ms }} ms per inferensi{% if detection.provider %} · {{ detection.provider }}{% endif %}</p>
+  {% endif %}
 </div>

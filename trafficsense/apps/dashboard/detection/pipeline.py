@@ -224,6 +224,9 @@ class DetectionPipeline:
         except OSError:
             LOG.exception("Kamera %s: gagal menyimpan keadaan analitik", self.code)
 
+    def save_now(self):
+        self._save_state()
+
     def delete_state(self):
         if self._state_path is not None:
             try:

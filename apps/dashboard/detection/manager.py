@@ -11,12 +11,18 @@ from .pipeline import UNAVAILABLE, DetectionPipeline, PipelineStatus
 
 LOG = logging.getLogger(__name__)
 
+def _effective_config():
+    from ..services import app_settings
+
+    return app_settings.effective_detection_config()
+
+
 NO_MODEL = "Model deteksi belum diatur (variabel TRAFFICSENSE_MODEL)."
 
 
 class DetectionManager:
     def __init__(self, config=None, *, detector_factory=load_detector, pipeline_factory=DetectionPipeline):
-        self._config = config or load_config()
+        self._config = config or _effective_config()
         self._detector_factory = detector_factory
         self._pipeline_factory = pipeline_factory
         self._pipelines = {}
@@ -44,6 +50,7 @@ class DetectionManager:
                     dir_b=camera.dir_b,
                     track_max_age=self._config.track_max_age,
                     track_min_hits=self._config.track_min_hits,
+                    full_occupancy=self._config.full_occupancy,
                 )
                 state_path = Path(self._config.state_dir) / f"{camera.id}.json" if self._config.state_dir else None
                 pipeline = self._pipeline_factory(camera.id, analyzer, self._detector_factory, self._config, state_path=state_path)
@@ -97,6 +104,15 @@ class DetectionManager:
 
 _manager = None
 _lock = threading.Lock()
+
+
+def reset_detection_manager():
+    """Hentikan semua pipeline dan buang singleton; pembuatan berikutnya membaca pengaturan terbaru."""
+    global _manager
+    with _lock:
+        old, _manager = _manager, None
+    if old is not None:
+        old.shutdown()
 
 
 def get_detection_manager() -> DetectionManager:

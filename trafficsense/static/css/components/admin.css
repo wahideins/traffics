@@ -1,0 +1,21 @@
+/* Halaman pengaturan admin */
+.admin { max-width: 960px; margin: 0 auto; padding: 24px 16px 64px; display: grid; gap: 16px; }
+.admin--narrow { max-width: 440px; padding-top: 12vh; }
+.admin-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.admin-head__side { display: flex; gap: 8px; }
+.admin-title { font-family: var(--font-display); font-size: 1.6rem; margin: 0; }
+.admin-sub { color: var(--text-muted); font-size: .85rem; }
+.admin-card { padding: 20px; }
+.admin-settings { display: grid; gap: 16px; }
+.admin-login { display: grid; gap: 12px; padding: 24px; }
+.admin-code { background: var(--surface-muted); border: 1px solid var(--border); border-radius: 8px; padding: 12px; overflow-x: auto; font-family: var(--font-mono); font-size: .85rem; }
+.admin-table { width: 100%; }
+.admin-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.admin-upload { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; align-items: center; }
+.admin-result td { background: var(--surface-muted); font-size: .85rem; white-space: pre-line; }
+.admin-bar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; position: sticky; bottom: 0; background: var(--bg); padding: 12px 0; }
+.admin-src { margin-left: 6px; font-size: .7rem; padding: 1px 6px; border-radius: 99px; background: var(--chip); color: var(--text-muted); }
+.admin-src--disimpan { background: var(--accent-soft); color: var(--accent); }
+.admin-dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; }
+.admin-dl dt { color: var(--text-muted); }
+.admin-dl dd { margin: 0; word-break: break-all; }

@@ -320,3 +320,37 @@ class SeriesAndStateTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RoiAndProviderTests(unittest.TestCase):
+    def test_roi_diurutkan_dan_divalidasi(self):
+        cal = calibrated(roi=[[0.9, 0.9], [0.2, 0.3]])
+        self.assertEqual(cal.roi, ((0.2, 0.3), (0.9, 0.9)))
+        self.assertIn("roi", parse_calibration({"axis": [[0.1, 0.5], [0.9, 0.5]], "roi": [[0.1, 0.1], [0.15, 0.9]]})[1])
+        self.assertIn("roi", parse_calibration({"axis": [[0.1, 0.5], [0.9, 0.5]], "roi": [[0.1, 0.1]]})[1])
+        self.assertEqual(cal.to_dict()["roi"], [[0.2, 0.3], [0.9, 0.9]])
+
+    def test_pemilihan_penyedia_eksekusi(self):
+        pick = YoloOnnxDetector._choose_providers
+        both = ["DmlExecutionProvider", "CPUExecutionProvider"]
+        self.assertEqual(pick(both, "auto"), both)
+        self.assertEqual(pick(both, "cpu"), ["CPUExecutionProvider"])
+        self.assertEqual(pick(["CPUExecutionProvider"], "cuda"), ["CPUExecutionProvider"])
+        self.assertEqual(pick(["CUDAExecutionProvider", "CPUExecutionProvider"], "auto")[0], "CUDAExecutionProvider")
+
+    def test_pipeline_memotong_area_dan_mengembalikan_koordinat_penuh(self):
+        from apps.dashboard.detection.pipeline import DetectionPipeline
+
+        seen = {}
+
+        class Det:
+            def detect(self, frame):
+                seen["shape"] = frame.shape[:2]
+                return [Detection((10, 20, 60, 70), 0.9, "mobil")]
+
+        analyzer = TrafficAnalyzer(speed_limit=60, calibration=calibrated(roi=[[0.5, 0.5], [1.0, 1.0]]))
+        pipe = DetectionPipeline("X", analyzer, lambda c: Det(), DetectionConfig())
+        dets, area = pipe._detect_in_roi(Det(), np.zeros((720, 1280, 3), dtype=np.uint8))
+        self.assertEqual(seen["shape"], (360, 640))
+        self.assertEqual(dets[0].box, (650, 380, 700, 430))
+        self.assertEqual(area, 640.0 * 360.0)

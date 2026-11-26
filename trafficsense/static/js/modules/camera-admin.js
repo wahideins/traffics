@@ -1,6 +1,5 @@
-// Tambah, tes, dan hapus kamera RTSP lewat dialog.
+// Tambah dan tes kamera RTSP lewat dialog (dipakai di halaman pengaturan).
 import { postForm } from "../api.js";
-import { getState, setState } from "../state.js";
 import { qsa } from "../utils/dom.js";
 
 const dialog = () => document.getElementById("add-camera-dialog");
@@ -69,30 +68,17 @@ async function submit(event) {
   setBusy(false);
   if (ok && data.ok) {
     dialog().close();
-    setState({ camera: data.code });
-    // Daftar tab kamera ikut dimuat ulang oleh panel (data-depends="camera").
+    hooks.onAdded(data.code);
   } else {
     showErrors(data.errors);
     setStatus("error", data.errors ? "Periksa isian yang bertanda merah." : "Gagal menyimpan kamera.");
   }
 }
 
-async function remove(button) {
-  const name = button.dataset.cameraName;
-  if (!window.confirm(`Hapus kamera "${name}"? Aliran videonya akan dihentikan.`)) return;
-  button.disabled = true;
-  const { ok } = await postForm(button.dataset.deleteUrl);
-  if (!ok) {
-    button.disabled = false;
-    window.alert("Kamera gagal dihapus.");
-    return;
-  }
-  const next = document.querySelector('[data-action="select-camera"]:not(.is-active)')?.dataset.camera;
-  const fallback = document.querySelector('[data-action="select-camera"]')?.dataset.camera;
-  setState({ camera: next && next !== getState().camera ? next : fallback });
-}
+const hooks = { onAdded: () => window.location.reload() };
 
-export function initCameraAdmin() {
+export function initCameraAdmin(options = {}) {
+  Object.assign(hooks, options);
   document.addEventListener("click", (event) => {
     const button = event.target.closest("[data-action]");
     if (!button) return;
@@ -100,7 +86,6 @@ export function initCameraAdmin() {
       case "open-add-camera": return openDialog();
       case "close-add-camera": return dialog().close();
       case "probe-camera": return probe();
-      case "delete-camera": return remove(button);
     }
   });
 

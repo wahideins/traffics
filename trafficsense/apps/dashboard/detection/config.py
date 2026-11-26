@@ -20,6 +20,7 @@ class DetectionConfig:
     detect_fps: float = 5.0  # batas frekuensi inferensi per kamera
     track_max_age: float = 1.5  # detik; objek hilang selama ini dibuang
     track_min_hits: int = 2  # jumlah deteksi sebelum objek dihitung
+    full_occupancy: float = 0.30  # luas kendaraan / luas area saat dianggap 100% padat
     provider: str = "auto"  # auto | cpu | cuda | dml
     state_dir: str = ""  # folder simpan hitungan harian; kosong = tidak disimpan
     autostart: bool = True  # jalankan kamera berdeteksi sejak server hidup
@@ -29,6 +30,7 @@ def load_config(base_dir=None) -> DetectionConfig:
     base = Path(base_dir) if base_dir else Path.cwd()
     return DetectionConfig(
         model_path=os.environ.get("TRAFFICSENSE_MODEL", ""),
+        full_occupancy=_env("TRAFFICSENSE_FULL_OCCUPANCY", 0.30, float),
         provider=os.environ.get("TRAFFICSENSE_PROVIDER", "auto").lower(),
         conf=_env("TRAFFICSENSE_DETECT_CONF", 0.35, float),
         nms_iou=_env("TRAFFICSENSE_DETECT_NMS_IOU", 0.5, float),
