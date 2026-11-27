@@ -230,6 +230,91 @@ class ByteTrackTests(unittest.TestCase):
         self.assertEqual(tracks[0].cls, "mobil")
 
 
+class ZoneMeasureTests(unittest.TestCase):
+    """Penghitungan per zona: hitungan, kecepatan, dan lawan arah dihitung dari kunjungan zona."""
+
+    def cal(self, direction="a", zones_only=True, **over):
+        zone = {"name": "Lajur 1", "color": "#3d8cff", "direction": direction,
+                "points": [[0.1, 0.5], [0.4, 0.5], [0.4, 0.9], [0.1, 0.9]]}  # x 128..512
+        return calibrated(zones=[zone], zones_only=zones_only, **over)
+
+    def run_vehicle(self, a, clock, x0, v, seconds, cls="mobil", y=450):
+        drive(a, clock, [(cls, x0, y, v)], seconds)
+        return a.snapshot(clock.t)
+
+    def test_hitungan_dan_kecepatan_dari_zona_tanpa_garis_hitung(self):
+        # garis hitung di 90% jalan (x ~ 1050) tak pernah dicapai; kendaraan hanya melewati zona
+        a, clock = make(self.cal(line_pos=0.9))
+        snap = self.run_vehicle(a, clock, 100, 300, 2.8)
+        self.assertEqual(snap["counts"]["a"]["mobil"], 1)
+        z = snap["zones"][0]
+        self.assertEqual((z["total"], z["by_cls"]["mobil"]), (1, 1))
+        expected = 300 * (25.0 / 640) * 3.6  # px/dtk -> km/j (skala referensi)
+        self.assertAlmostEqual(z["avg_speed"], expected, delta=6)
+        self.assertAlmostEqual(snap["speed"]["avg"], z["avg_speed"], delta=0.5)  # sumber sama
+        self.assertEqual(snap["wrong_today"], 0)
+
+    def test_lawan_arah_di_zona(self):
+        a, clock = make(self.cal(direction="a"))
+        snap = self.run_vehicle(a, clock, 700, -250, 4.8, cls="truk")
+        z = snap["zones"][0]
+        self.assertEqual(z["wrong"], 1)
+        self.assertEqual(snap["wrong_today"], 1)
+        wrong = [e for e in snap["events"] if e["type"] == "wrong"]
+        self.assertEqual(len(wrong), 1)
+        self.assertIn("Lajur 1", wrong[0]["detail"])
+        self.assertEqual(snap["counts"]["b"]["truk"], 1)  # dihitung menurut arah gerak sebenarnya
+
+    def test_arah_b_dan_dua_arah(self):
+        a, clock = make(self.cal(direction="b"))
+        snap = self.run_vehicle(a, clock, 700, -250, 4.8)
+        self.assertEqual(snap["zones"][0]["wrong"], 0)
+        a, clock = make(self.cal(direction="both"))
+        snap = self.run_vehicle(a, clock, 700, -250, 4.8)
+        self.assertEqual(snap["zones"][0]["wrong"], 0)
+        self.assertEqual(snap["counts"]["b"]["mobil"], 1)
+
+    def test_pelanggaran_kecepatan_per_zona(self):
+        a, clock = make(self.cal(), limit=30)
+        snap = self.run_vehicle(a, clock, 100, 400, 2.5)  # ~56 km/j
+        self.assertEqual(snap["zones"][0]["speeding"], 1)
+        self.assertEqual(snap["speeding"] if "speeding" in snap else snap["speed"]["speeding"], 1)
+
+    def test_tanpa_mode_zona_statistik_zona_tetap_ada_tetapi_hitungan_global_dari_garis(self):
+        a, clock = make(self.cal(zones_only=False, line_pos=0.9))
+        snap = self.run_vehicle(a, clock, 100, 300, 2.8)  # garis tak tercapai
+        self.assertEqual(snap["counts"]["a"]["mobil"], 0)
+        self.assertEqual(snap["zones"][0]["total"], 1)
+
+    def test_lawan_arah_zona_tanpa_mode_zona_tidak_menambah_hitungan_global(self):
+        a, clock = make(self.cal(direction="a", zones_only=False))
+        snap = self.run_vehicle(a, clock, 700, -250, 4.8)
+        self.assertEqual(snap["zones"][0]["wrong"], 1)
+        self.assertEqual(snap["wrong_today"], 0)  # tanpa median/satu arah, logika garis tak bisa menilai
+
+    def test_getar_di_tepi_zona_tidak_menghitung_ganda(self):
+        a, clock = make(self.cal())
+        # keluar-masuk tepi kanan zona (x=512) beberapa kali lalu pergi: satu kunjungan saja
+        for i, x in enumerate([150, 250, 350, 450, 480, 530, 490, 535, 495, 540, 700, 900, 1100]):
+            clock.t = 1_800_000_000.0 + i / FPS
+            a.process([car(x, 450)], (W, H), clock.t)
+        for i in range(13, 32):
+            clock.t = 1_800_000_000.0 + i / FPS
+            a.process([], (W, H), clock.t)
+        snap = a.snapshot(clock.t)
+        self.assertEqual(snap["zones"][0]["total"], 1)
+        self.assertEqual(sum(snap["counts"]["a"].values()) + sum(snap["counts"]["b"].values()), 1)
+
+    def test_arah_zona_dibaca_dan_divalidasi(self):
+        bad = {"name": "Z", "color": "#3d8cff", "direction": "x", "points": [[0.1, 0.5], [0.4, 0.5], [0.4, 0.9]]}
+        _, errors = parse_calibration({**calibrated().to_dict(), "zones": [bad]})
+        self.assertIn("zones", errors)
+        cal, _ = parse_calibration({**calibrated().to_dict(), "zones": [{**bad, "direction": "both"}]})
+        self.assertEqual(cal.zones[0].direction, "both")
+        default, _ = parse_calibration({**calibrated().to_dict(), "zones": [{k: v for k, v in bad.items() if k != "direction"}]})
+        self.assertEqual(default.zones[0].direction, "a")
+
+
 class CalibrationTests(unittest.TestCase):
     def test_skala_meter_per_piksel(self):
         road = RoadModel(calibrated(), W, H)

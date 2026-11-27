@@ -12,6 +12,7 @@ tidak bergantung resolusi stream.
               kendaraan jauh tampil lebih besar dan CPU tidak membuang tenaga pada langit/bangunan.
 * zones     : poligon lajur/zona bernama (maks 8). Waktu tinggal tiap kendaraan dihitung selama titik
               tapaknya (tengah-bawah kotak) berada di dalam poligon.
+* zones      : poligon lajur; tiap zona punya `direction` (a/b/both) untuk lawan arah dan arah hitungan.
 * zones_only: deteksi hanya di dalam zona: model hanya melihat kotak pembatas semua zona (piksel di luar
               zona ditutup abu-abu), dan hanya kendaraan yang titik tapaknya di dalam zona yang dihitung.
               Mengalahkan `roi`. Butuh minimal satu zona.
@@ -36,14 +37,19 @@ ZONE_NAME_MAX = 30
 _COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
 
 
+ZONE_DIRECTIONS = ("a", "b", "both")
+
+
 @dataclass(frozen=True)
 class Zone:
     name: str
     color: str  # #rrggbb
     points: Tuple[Point, ...]
+    direction: str = "a"  # arah lalu lintas yang diharapkan di zona: "a" (searah panah A), "b" (berlawanan), "both"
 
     def to_dict(self):
-        return {"name": self.name, "color": self.color, "points": [list(p) for p in self.points]}
+        return {"name": self.name, "color": self.color, "points": [list(p) for p in self.points],
+                "direction": self.direction}
 
     def contains(self, x, y):
         return point_in_polygon(x, y, self.points)
@@ -164,7 +170,11 @@ def _parse_zones(raw, errors):
         if polygon_area(points) < MIN_ZONE_AREA:
             errors["zones"] = f"Zona \"{name}\" terlalu kecil atau garis lurus."
             return ()
-        zones.append(Zone(name=name, color=color.lower(), points=points))
+        direction = str(item.get("direction") or "a")
+        if direction not in ZONE_DIRECTIONS:
+            errors["zones"] = f"Arah zona \"{name}\" tidak valid."
+            return ()
+        zones.append(Zone(name=name, color=color.lower(), points=points, direction=direction))
     return tuple(zones)
 
 

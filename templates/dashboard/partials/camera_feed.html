@@ -37,13 +37,13 @@
 
     {% include "dashboard/partials/feed_hud.html" %}
 
-    <div class="feed__overlay" role="status" hidden>Menghubungkan ke aliran RTSP…</div>
+    <div class="feed__overlay" role="status" hidden>Menghubungkan ke aliran…</div>
   </div>
 
   {% if camera.source == "rtsp" %}{% include "dashboard/partials/detection_notice.html" %}{% endif %}
 
   <ul class="feed__meta">
-    <li>{% if camera.source == "rtsp" %}Aliran RTSP · {{ camera.display_url }}{% else %}Simulasi{% endif %}</li>
+    <li>{% if camera.source == "rtsp" %}Aliran · {{ camera.display_url }}{% else %}Simulasi{% endif %}</li>
     <li>Batas kecepatan {{ camera.speed_limit }} km/j</li>
   </ul>
 </section>

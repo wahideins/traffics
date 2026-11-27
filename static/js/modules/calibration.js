@@ -42,7 +42,7 @@ function fromStored(data) {
   state.median = data.median ? [data.median[0], data.median[1]] : null;
   state.ref = pts(data.ref);
   state.roi = pts(data.roi);
-  state.zones = (data.zones || []).map((z) => ({ name: z.name, color: z.color, points: pts(z.points) }));
+  state.zones = (data.zones || []).map((z) => ({ name: z.name, color: z.color, direction: z.direction || "a", points: pts(z.points) }));
   state.line_pos = data.line_pos ?? 0.5;
   state.one_way = Boolean(data.one_way);
   state.zones_only = Boolean(data.zones_only);
@@ -205,11 +205,20 @@ function renderZoneList() {
     li.innerHTML =
       '<input type="color" class="zone-item__color" aria-label="Warna zona">' +
       '<input type="text" class="input zone-item__name" maxlength="30" aria-label="Nama zona">' +
+      '<select class="input zone-item__dir" aria-label="Arah lalu lintas zona">' +
+      '<option value="a">Arah A (searah panah)</option><option value="b">Arah B (berlawanan panah)</option>' +
+      '<option value="both">Dua arah</option></select>' +
       '<button type="button" class="btn btn--ghost zone-item__del" aria-label="Hapus zona">Hapus</button>';
     const color = qs(".zone-item__color", li);
     const name = qs(".zone-item__name", li);
     color.value = zone.color;
     name.value = zone.name;
+    const dir = qs(".zone-item__dir", li);
+    dir.value = zone.direction;
+    dir.addEventListener("change", () => {
+      zone.direction = dir.value;
+      setDirty();
+    });
     color.addEventListener("input", () => {
       zone.color = color.value;
       setDirty();
@@ -280,7 +289,7 @@ function startZone() {
   if (s.zones.length >= MAX_ZONES) return status("error", `Maksimum ${MAX_ZONES} zona.`);
   if (s.drawing) finishZone();
   if (s.drawing) return;
-  s.zones.push({ name: nextName(), color: nextColor(), points: [] });
+  s.zones.push({ name: nextName(), color: nextColor(), direction: "a", points: [] });
   s.active = s.zones.length - 1;
   s.drawing = true;
   s.tool = "zone";
@@ -450,7 +459,10 @@ function renderStats(data) {
     name.textContent = z.name;
     name.style.borderLeft = `4px solid ${z.color}`;
     tr.append(name);
-    [z.now, z.entered, fmt(z.avg_dwell), fmt(z.max_dwell)].forEach((v) => {
+    const classes = Object.entries(z.by_cls || {}).filter(([, n]) => n > 0).map(([k, n]) => `${k} ${n}`).join(" · ");
+    const speed = (v) => (v == null ? "–" : `${Math.round(v)} km/j`);
+    const total = classes ? `${z.total} (${classes})` : String(z.total ?? 0);
+    [z.now, total, speed(z.avg_speed), z.speeding ?? 0, z.wrong ?? 0, fmt(z.avg_dwell), fmt(z.max_dwell)].forEach((v) => {
       const td = document.createElement("td");
       td.textContent = v;
       tr.append(td);
@@ -460,7 +472,7 @@ function renderStats(data) {
   note.textContent = !data.ok
     ? "Deteksi belum berjalan untuk kamera ini (model belum dipilih atau sedang dimuat)."
     : (data.zones || []).length
-      ? "Statistik dihitung sejak zona terakhir disimpan atau server menyala."
+      ? "Statistik dihitung sejak zona terakhir disimpan atau server menyala. Kendaraan dihitung saat selesai melewati zona."
       : "Belum ada zona tersimpan. Gambar zona lalu simpan.";
 }
 
@@ -503,7 +515,7 @@ async function save() {
     payload.ref_m = s.ref_m;
   }
   payload.zones_only = s.zones_only;
-  payload.zones = s.zones.map((z) => ({ name: z.name.trim(), color: z.color, points: z.points }));
+  payload.zones = s.zones.map((z) => ({ name: z.name.trim(), color: z.color, direction: z.direction, points: z.points }));
   status("info", "Menyimpan…");
   const { ok, data } = await postForm(root.dataset.saveUrl, payload, { json: true });
   if (ok && data.ok) {

@@ -4,13 +4,13 @@
   <form class="dialog__form" data-camera-form method="post" action="{% url 'dashboard:camera_add' %}" novalidate>
     {% csrf_token %}
     <header class="dialog__head">
-      <h2 class="card__title" id="add-camera-title">Tambah kamera RTSP</h2>
+      <h2 class="card__title" id="add-camera-title">Tambah kamera</h2>
       <button type="button" class="dialog__close" data-action="close-add-camera" aria-label="Tutup">×</button>
     </header>
 
     <div class="dialog__body">
       {% include "dashboard/components/form_field.html" with name="name" label="Nama kamera" placeholder="Contoh: Simpang Pasar Baru" required=True %}
-      {% include "dashboard/components/form_field.html" with name="rtsp_url" label="Tautan RTSP" placeholder="rtsp://192.168.1.20:554/stream1" mono=True required=True inputmode="url" hint="Tanpa nama pengguna dan sandi; isi keduanya di bawah bila perlu." %}
+      {% include "dashboard/components/form_field.html" with name="rtsp_url" label="Tautan stream (RTSP atau HLS .m3u8)" placeholder="rtsp://192.168.1.20:554/stream1 atau https://host/live/index.m3u8" mono=True required=True inputmode="url" hint="RTSP atau HLS (.m3u8, live). Tanpa nama pengguna dan sandi; isi keduanya di bawah bila perlu." %}
 
       <div class="form-grid">
         {% include "dashboard/components/form_field.html" with name="username" label="Nama pengguna" autocomplete="off" %}

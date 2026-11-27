@@ -128,10 +128,12 @@ polyline.cal-zone { fill: none; stroke-dasharray: 6 4; }
 
 .zone-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .zone-list:empty::after { content: "Belum ada zona."; color: var(--text-muted); font-size: 13px; }
-.zone-item { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 6px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.zone-item { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 8px; /* baris 2: arah */ align-items: center; padding: 6px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
 .zone-item.is-active { border-color: var(--accent); background: var(--accent-soft); }
 .zone-item__color { width: 36px; height: 36px; padding: 0; border: 0; background: none; cursor: pointer; }
 
 @media (max-width: 960px) {
   .cal-layout { grid-template-columns: minmax(0, 1fr); }
 }
+
+.zone-item__dir { grid-column: 2 / -1; font-size: .85rem; }

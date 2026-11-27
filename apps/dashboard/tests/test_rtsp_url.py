@@ -15,7 +15,7 @@ class ValidasiTests(unittest.TestCase):
         self.assertTrue(build_rtsp_url("rtsp://192.168.1.20:554/stream1").startswith("rtsp://"))
 
     def test_skema_selain_rtsp_ditolak(self):
-        for bad in ("http://x.com/a", "file:///etc/passwd", "ftp://a/b", "javascript:alert(1)"):
+        for bad in ("ftp://x.com/a", "file:///etc/passwd", "ftp://a/b", "javascript:alert(1)"):
             with self.assertRaises(RtspUrlError, msg=bad):
                 split_rtsp_url(bad)
 
@@ -45,6 +45,30 @@ class ValidasiTests(unittest.TestCase):
         # Kamera CCTV memang biasanya ada di jaringan lokal.
         split_rtsp_url("rtsp://10.0.0.5/x")
         split_rtsp_url("rtsp://127.0.0.1:8554/live")
+
+
+class HlsTests(unittest.TestCase):
+    def test_m3u8_diterima(self):
+        for ok in ("https://cdn.example.com/live/index.m3u8", "http://10.0.0.5:8080/a/B.M3U8?token=abc"):
+            split_rtsp_url(ok)
+
+    def test_http_tanpa_m3u8_ditolak(self):
+        for bad in ("http://x.com/a", "https://x.com/video.mp4", "http://x.com/m3u8"):
+            with self.assertRaises(RtspUrlError, msg=bad):
+                split_rtsp_url(bad)
+
+    def test_host_berbahaya_ditolak_di_hls(self):
+        with self.assertRaises(RtspUrlError):
+            split_rtsp_url("http://169.254.169.254/latest/x.m3u8")
+
+    def test_penyamaran(self):
+        masked = mask_url("https://u:rahasia@h.com/a.m3u8?token=zzz&x=1")
+        self.assertNotIn("rahasia", masked)
+        self.assertNotIn("zzz", masked)
+        self.assertNotIn("rahasia", redact_text("gagal https://u:rahasia@h.com/a.m3u8"))
+
+    def test_kredensial_terpisah(self):
+        self.assertIn("admin:", build_rtsp_url("https://h.com/a.m3u8", "admin", "pw"))
 
 
 class KredensialTests(unittest.TestCase):

@@ -25,6 +25,15 @@ class StreamStatus:
     fatal: bool = False  # True: tidak akan dicoba ulang (mis. OpenCV tidak terpasang)
 
 
+_POS_MSEC = 0  # cv2.CAP_PROP_POS_MSEC
+
+
+def _is_hls(url):
+    from ..services.rtsp_url import is_hls_url
+
+    return is_hls_url(url)
+
+
 class RtspReader:
     """Membaca stream di thread sendiri dan menyimpan JPEG frame terbaru.
 
@@ -144,6 +153,25 @@ class RtspReader:
             self._status = replace(self._status, **changes)
             self._cond.notify_all()
 
+    def _pace(self, capture, origin):
+        """HLS: segmen diunduh serentak lalu didekode sangat cepat. Tahan frame
+        sampai waktu dinding sesuai waktu stream agar kecepatan/dwell tidak kacau."""
+        try:
+            pos_ms = float(capture.get(_POS_MSEC))
+        except Exception:  # noqa: BLE001
+            return origin
+        if pos_ms != pos_ms or pos_ms <= 0:
+            return origin
+        now = time.monotonic()
+        if origin is None:
+            return (now, pos_ms)
+        ahead = (pos_ms - origin[1]) / 1000.0 - (now - origin[0])
+        if ahead > 0:
+            self._sleep(min(ahead, 2.0))
+        elif ahead < -2.0:
+            return (now, pos_ms)  # tertinggal jauh: sinkron ulang
+        return origin
+
     def _sleep(self, seconds):
         """Tidur sampai waktunya habis atau dibangunkan (stop/reconnect)."""
         self._wake.clear()
@@ -206,10 +234,15 @@ class RtspReader:
         window_start = time.monotonic()
         window_frames = 0
 
+        paced = _is_hls(self._url)
+        pace_origin = None  # (waktu dinding, waktu stream ms) pada frame pertama
+
         while not self._stopping and not self._reconnect:
             ok, frame = capture.read()
             if not ok or frame is None:
                 return got_frame
+            if paced:
+                pace_origin = self._pace(capture, pace_origin)
 
             now = time.monotonic()
             frames += 1

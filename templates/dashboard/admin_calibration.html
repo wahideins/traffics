@@ -41,7 +41,7 @@
       <label class="cal-check"><input type="checkbox" data-cal-preview> Pratinjau langsung: video dengan deteksi, zona, dan waktu tinggal (memakai kalibrasi yang sudah disimpan)</label>
       <div data-cal-stats class="cal-stats" hidden>
         <table class="data-table admin-table">
-          <thead><tr><th>Zona</th><th>Sekarang</th><th>Masuk</th><th>Rata-rata tinggal</th><th>Terlama</th></tr></thead>
+          <thead><tr><th>Zona</th><th>Sekarang</th><th>Total (per kelas)</th><th>Rata-rata kecepatan</th><th>Melebihi batas</th><th>Lawan arah</th><th>Rata-rata tinggal</th><th>Terlama</th></tr></thead>
           <tbody data-cal-stats-body></tbody>
         </table>
         <p class="admin-sub" data-cal-stats-note></p>
@@ -72,8 +72,8 @@
       <section class="card cal-card">
         <div class="card__head"><h2 class="card__title">Zona lajur</h2>
           <button type="button" class="btn btn--ghost" data-action="add-zone">+ Tambah zona</button></div>
-        <p class="admin-sub">Klik titik-titik sudut di gambar (alat Zona), klik titik pertama atau tekan Enter untuk menutup. Seret titik untuk menggeser, klik dua kali untuk menghapus titik. Waktu tinggal dihitung dari titik tengah-bawah kotak kendaraan.</p>
-        <label class="cal-check"><input type="checkbox" data-cal-input="zones_only"> Deteksi hanya di dalam zona (lebih ringan di CPU; Area deteksi diabaikan)</label>
+        <p class="admin-sub">Klik titik-titik sudut di gambar (alat Zona), klik titik pertama atau tekan Enter untuk menutup. Seret titik untuk menggeser, klik dua kali untuk menghapus titik. Tiap zona mengukur sendiri: hitungan per kelas, kecepatan, lawan arah (menurut "Arah" zona, relatif panah Arah A), dan waktu tinggal, semuanya dari titik tengah-bawah kotak kendaraan.</p>
+        <label class="cal-check"><input type="checkbox" data-cal-input="zones_only"> Semua pengukuran hanya di dalam zona: deteksi, hitungan, kecepatan, lawan arah, kepadatan (lebih ringan di CPU; garis hitung dan Area deteksi diabaikan)</label>
         <ul class="zone-list" data-zone-list></ul>
         <button type="button" class="btn btn--primary" data-action="finish-zone" hidden>Selesai menggambar zona</button>
       </section>

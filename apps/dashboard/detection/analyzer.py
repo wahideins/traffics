@@ -25,6 +25,7 @@ CONGESTION_HOLD = 20.0  # detik berstatus macet sebelum dicatat sebagai kejadian
 WRONG_WAY_ACTIVE = 8.0  # detik peringatan lawan arah tampil di HUD
 BUCKET_KEEP_SECONDS = 25 * 3600
 MAX_EVENTS = 200
+ZONE_EXIT_GRACE = 0.8  # detik di luar zona sebelum kunjungan dianggap selesai
 STATE_VERSION = 1
 
 
@@ -97,14 +98,16 @@ class TrafficAnalyzer:
             tracks = self._tracker.update(detections, t)
             frame_area = float(area) if area else float(width * height)  # luas area deteksi bila ada
 
+            zones_mode = self.calibration.detect_in_zones
             for tr in tracks:
                 gx, gy = tr.ground
                 s = road.s(gx, gy)
                 tr.speed_kmh = self._speed_of(tr, road, t)
                 tr.direction = self._direction_of(tr, road)
-                if tr.s_prev is not None:
-                    self._check_crossing(tr, tr.s_prev, s, road, t)
-                self._check_wrong_way(tr, road, t)
+                if not zones_mode:  # mode zona: hitungan dan lawan arah diambil dari kunjungan zona
+                    if tr.s_prev is not None:
+                        self._check_crossing(tr, tr.s_prev, s, road, t)
+                    self._check_wrong_way(tr, road, t)
                 tr.s_prev = s
 
             self._update_zones(tracks, width, height, t)
@@ -124,17 +127,89 @@ class TrafficAnalyzer:
             return tracks
 
     # --- zona ---------------------------------------------------------------
+    def _new_zone_stats(self):
+        return {
+            "entered": 0, "sum": 0.0, "n": 0, "max": 0.0,  # waktu tinggal
+            "total": 0, "by_cls": {k: 0 for k in CLASS_KEYS},  # kendaraan yang menyelesaikan kunjungan
+            "spd_sum": 0.0, "spd_n": 0, "spd_max": 0.0, "speeding": 0, "wrong": 0,
+        }
+
     def _reset_zones(self, calibration=None):
         zones = (calibration or self.calibration).zones
         self._zone_state = {}
-        self._zone_stats = [{"entered": 0, "sum": 0.0, "n": 0, "max": 0.0} for _ in zones]
+        self._zone_stats = [self._new_zone_stats() for _ in zones]
 
-    def _finish_visit(self, state):
+    def _visit_direction(self, state, road, zone_diag):
+        """Arah gerak selama kunjungan relatif panah A ("a"/"b"), atau None bila geraknya terlalu kecil."""
+        pts = state["pts"]
+        if road is None or len(pts) < 2:
+            return None
+        (_, x0, y0), (_, x1, y1) = pts[0], pts[-1]
+        ds = (x1 - x0) * road.ux + (y1 - y0) * road.uy
+        if abs(ds) < max(10.0, 0.05 * zone_diag):
+            return None
+        return "a" if ds > 0 else "b"
+
+    def _zone_diag(self, zone):
+        w, h = self._frame_size or (1, 1)
+        xs = [p[0] * w for p in zone.points]
+        ys = [p[1] * h for p in zone.points]
+        return math.hypot(max(xs) - min(xs), max(ys) - min(ys))
+
+    def _finish_visit(self, state, t):
+        """Akhiri kunjungan satu kendaraan di satu zona: catat waktu tinggal, hitungan, kecepatan, dan (mode zona) hitungan global."""
+        zones = self.calibration.zones
+        if state["zone"] >= len(zones):
+            return
+        zone = zones[state["zone"]]
         stats = self._zone_stats[state["zone"]]
         dwell = max(0.0, state["last"] - state["since"])
         stats["sum"] += dwell
         stats["n"] += 1
         stats["max"] = max(stats["max"], dwell)
+        tr = state["tr"]
+        if len(state["pts"]) < 2:  # sekadar menyentuh tepi zona / lacak sesaat: bukan kendaraan yang lewat
+            return
+        speed = state["spd_sum"] / state["spd_n"] if state["spd_n"] else None
+        stats["total"] += 1
+        stats["by_cls"][tr.cls] += 1
+        if speed is not None:
+            stats["spd_sum"] += speed
+            stats["spd_n"] += 1
+            stats["spd_max"] = max(stats["spd_max"], state["spd_max"])
+            if speed > self.speed_limit:
+                stats["speeding"] += 1
+        if self.calibration.detect_in_zones and not tr.counted:
+            road = self._road()
+            direction = self._visit_direction(state, road, self._zone_diag(zone))
+            if direction is None:
+                direction = zone.direction if zone.direction in ("a", "b") else (tr.direction or "a")
+            tr.counted = True
+            self._register_pass(tr.cls, direction, speed, t, zone.name)
+
+    def _check_zone_wrong_way(self, state, zone, t):
+        """Lawan arah di dalam zona: gerak selama kunjungan berlawanan dengan arah yang ditetapkan zona."""
+        if state["wrong"] or zone.direction == "both" or not self.calibration.configured:
+            return
+        road = self._road()
+        pts = state["pts"]
+        if road is None or len(pts) < 5:
+            return
+        (_, x0, y0), (_, x1, y1) = pts[0], pts[-1]
+        ds = (x1 - x0) * road.ux + (y1 - y0) * road.uy
+        path = sum(math.hypot(b[1] - a[1], b[2] - a[2]) for a, b in zip(pts, pts[1:]))
+        if abs(ds) < max(20.0, 0.12 * self._zone_diag(zone)) or abs(ds) < 0.7 * path:
+            return  # belum cukup jauh atau zig-zag (kemungkinan salah lacak)
+        if ("a" if ds > 0 else "b") == zone.direction:
+            return
+        state["wrong"] = True
+        self._zone_stats[state["zone"]]["wrong"] += 1
+        tr = state["tr"]
+        if self.calibration.detect_in_zones and not tr.wrong_flagged:
+            tr.wrong_flagged = True
+            self._wrong_today += 1
+            self._last_wrong_t = t
+            self._add_event(t, "wrong", f"{CLASS_NAMES[tr.cls]} melawan arah di {zone.name}", zone.name, "high")
 
     def _update_zones(self, tracks, width, height, t):
         zones = self.calibration.zones
@@ -147,23 +222,38 @@ class TrafficAnalyzer:
             index = next((i for i, z in enumerate(zones) if z.contains(nx, ny)), None)
             state = self._zone_state.get(tr.id)
             seen.add(tr.id)
-            if state is not None and state["zone"] != index:
-                self._finish_visit(state)
+            if state is not None and index is not None and state["zone"] != index:
+                self._finish_visit(state, t)
                 del self._zone_state[tr.id]
                 state = None
             if index is None:
+                if state is not None:
+                    state["inside"] = False
+                    if t - state["last"] > ZONE_EXIT_GRACE:  # keluar sungguhan, bukan getar di tepi zona
+                        self._finish_visit(state, t)
+                        del self._zone_state[tr.id]
                 continue
             if state is None:
-                self._zone_state[tr.id] = {"zone": index, "since": t, "last": t}
+                state = {"zone": index, "since": t, "last": t, "inside": True, "pts": [], "spd_sum": 0.0,
+                         "spd_n": 0, "spd_max": 0.0, "wrong": False, "tr": tr}
+                self._zone_state[tr.id] = state
                 self._zone_stats[index]["entered"] += 1
-            else:
-                state["last"] = t
+            state["inside"] = True
+            state["last"] = t
+            state["tr"] = tr
+            state["pts"].append((t, gx, gy))
+            del state["pts"][:-80]
+            if tr.speed_kmh is not None:
+                state["spd_sum"] += tr.speed_kmh
+                state["spd_n"] += 1
+                state["spd_max"] = max(state["spd_max"], tr.speed_kmh)
+            self._check_zone_wrong_way(state, zones[index], t)
         for tid in [k for k, s in self._zone_state.items() if k not in seen and t - s["last"] > self._max_age]:
-            self._finish_visit(self._zone_state.pop(tid))
+            self._finish_visit(self._zone_state.pop(tid), t)
 
     def _zone_info(self, track_id, t):
         state = self._zone_state.get(track_id)
-        if state is None or not self.calibration.zones:
+        if state is None or not state["inside"] or not self.calibration.zones:
             return {"zone": None, "dwell": None}
         return {"zone": self.calibration.zones[state["zone"]].name, "dwell": max(0.0, t - state["since"])}
 
@@ -171,13 +261,19 @@ class TrafficAnalyzer:
         out = []
         now = {}
         for state in self._zone_state.values():
-            now[state["zone"]] = now.get(state["zone"], 0) + 1
+            if state["inside"]:
+                now[state["zone"]] = now.get(state["zone"], 0) + 1
         for i, zone in enumerate(self.calibration.zones):
-            stats = self._zone_stats[i] if i < len(self._zone_stats) else {"entered": 0, "sum": 0.0, "n": 0, "max": 0.0}
+            stats = self._zone_stats[i] if i < len(self._zone_stats) else self._new_zone_stats()
             out.append({
-                "name": zone.name, "color": zone.color, "now": now.get(i, 0), "entered": stats["entered"],
+                "name": zone.name, "color": zone.color, "direction": zone.direction,
+                "now": now.get(i, 0), "entered": stats["entered"],
                 "avg_dwell": stats["sum"] / stats["n"] if stats["n"] else None,
                 "max_dwell": stats["max"] if stats["n"] else None,
+                "total": stats["total"], "by_cls": dict(stats["by_cls"]),
+                "avg_speed": stats["spd_sum"] / stats["spd_n"] if stats["spd_n"] else None,
+                "max_speed": stats["spd_max"] if stats["spd_n"] else None,
+                "speeding": stats["speeding"], "wrong": stats["wrong"],
             })
         return out
 
@@ -285,7 +381,7 @@ class TrafficAnalyzer:
             self._crossings.clear()
             self._macet_since = self._ok_since = None
             self._macet_logged = False
-            self._zone_stats = [{"entered": 0, "sum": 0.0, "n": 0, "max": 0.0} for _ in self.calibration.zones]
+            self._reset_zones()
 
     # --- penyimpanan keadaan --------------------------------------------
     def export_state(self):
@@ -398,11 +494,13 @@ class TrafficAnalyzer:
         else:
             return
         tr.counted = True
-        cls = tr.cls
+        self._register_pass(tr.cls, direction, tr.speed_kmh, t, self._lane(direction))
+
+    def _register_pass(self, cls, direction, speed, t, lane):
+        """Catat satu kendaraan yang lewat: hitungan per arah/kelas, arus, histogram kecepatan, dan pelanggaran."""
         self._counts[direction][cls] += 1
         bucket = self._bucket(t)
         bucket["c"][cls] = bucket["c"].get(cls, 0) + 1
-        speed = tr.speed_kmh
         self._crossings.append((t, direction, speed))
 
         if speed is not None:
@@ -420,7 +518,7 @@ class TrafficAnalyzer:
                 self._add_event(
                     t, "speed",
                     f"{CLASS_NAMES[cls]} {round(speed)} km/j (batas {self.speed_limit})",
-                    self._lane(direction),
+                    lane,
                     "high" if over >= 20 else "mid" if over >= 10 else "low",
                 )
 

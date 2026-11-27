@@ -26,7 +26,9 @@ Tes:
 python manage.py test apps.dashboard
 ```
 
-## Kamera RTSP
+## Kamera RTSP dan HLS (.m3u8)
+
+Selain `rtsp://`, tautan `http(s)://…/playlist.m3u8` (HLS live) juga diterima di dialog Tambah kamera. Frame HLS diatur waktunya sesuai timestamp stream agar kecepatan tidak melonjak saat segmen diunduh serentak. Playlist VOD (berakhir) akan terputus lalu disambung ulang terus-menerus; pakai HLS live. Login Basic untuk HLS hanya bila server menerimanya; token di query string lebih umum.
 
 Klik **Tambah kamera**, isi nama dan tautan RTSP (`rtsp://host:554/path`), nama pengguna/sandi
 (opsional), lalu **Tes koneksi** dan **Simpan**. Kamera tersimpan di `data/cameras.json`
@@ -70,7 +72,8 @@ Struktur tambahan deteksi: `detection/` (detector, bytetrack, calibration, analy
    - **Jarak referensi**: dua titik di jalan beserta jarak aslinya (meter). Tanpa ini kecepatan dan pelanggaran batas tidak dihitung.
    - **Area deteksi** (opsional, sangat disarankan di CPU): dua sudut yang membingkai jalan. Hanya bagian ini yang dikirim ke model, sehingga kendaraan jauh tampil lebih besar dan langit/bangunan tidak ikut diproses.
    - **Zona lajur** (opsional, maks. 8): gambar poligon berwarna dan beri nama (mis. "Lajur 1"). Klik sudut-sudutnya, tutup dengan klik titik pertama atau Enter; seret titik untuk menggeser, klik dua kali untuk menghapus titik. Tiap kendaraan yang titik tapaknya (tengah-bawah kotak) berada di zona diberi label "zona X,X dtk" (waktu tinggal) pada video, dan tabel di halaman kalibrasi menampilkan jumlah sekarang, jumlah masuk, rata-rata, dan terlama. Centang "Pratinjau langsung" untuk melihat video beranotasi.
-   - **Deteksi hanya di dalam zona** (opsional): model hanya melihat kotak pembatas zona dengan piksel di luar zona ditutup abu-abu, dan hanya kendaraan yang titik tapaknya berada di zona yang dihitung (garis hitung, kecepatan, dan kepadatan ikut terbatas di zona). Mengalahkan "Area deteksi". Lebih ringan di CPU karena gambar yang diproses lebih kecil.
+   - **Arah zona**: tiap zona punya arah lalu lintas (searah panah Arah A, berlawanan, atau dua arah). Kendaraan yang bergerak berlawanan dengan arah zonanya dicatat sebagai lawan arah di zona itu.
+   - **Semua pengukuran hanya di dalam zona** (opsional): deteksi hanya pada kotak pembatas zona (piksel di luar ditutup abu-abu, lebih ringan di CPU), dan seluruh penghitungan berasal dari zona: kendaraan dihitung per kelas saat selesai melewati zona (arah menurut gerak sebenarnya), kecepatan rata-rata kunjungan, pelanggaran batas kecepatan, lawan arah, kepadatan terhadap luas zona. Garis hitung, median, dan Area deteksi diabaikan. Tanpa opsi ini, zona tetap menampilkan statistiknya sendiri tetapi hitungan dashboard memakai garis hitung.
 
 Yang dilakukan: YOLO (mobil, motor, bus, truk) → pelacak ByteTrack → hitung saat melintas garis → kecepatan dari
 perpindahan titik tapak × skala → lawan arah dari gerak berlawanan arah jalur → kepadatan dari luas kotak

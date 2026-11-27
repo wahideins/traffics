@@ -9,24 +9,37 @@ import re
 import socket
 from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 
-ALLOWED_SCHEMES = ("rtsp", "rtsps")
+ALLOWED_SCHEMES = ("rtsp", "rtsps", "http", "https")
+HLS_SCHEMES = ("http", "https")
 MASK = "••••"
 MAX_URL_LENGTH = 500
 
 _BLOCKED_HOSTNAMES = {"metadata.google.internal"}
 _SECRET_QUERY_KEYS = re.compile(r"pass|pwd|token|key|secret|auth", re.I)
-_USERINFO_RE = re.compile(r"(rtsps?://[^:/@\s]*):[^@\s]*@", re.I)
+_USERINFO_RE = re.compile(r"((?:rtsps?|https?)://[^:/@\s]*):[^@\s]*@", re.I)
 
 
 class RtspUrlError(ValueError):
     """Pesan sudah dalam bahasa pengguna dan aman ditampilkan."""
 
 
+def is_hls_path(path):
+    return (path or "").lower().endswith(".m3u8")
+
+
+def is_hls_url(url):
+    try:
+        parts = urlsplit(url or "")
+    except ValueError:
+        return False
+    return parts.scheme.lower() in HLS_SCHEMES and is_hls_path(parts.path)
+
+
 def split_rtsp_url(raw):
     """Pecah dan validasi URL RTSP. Raise RtspUrlError bila tidak valid."""
     raw = (raw or "").strip()
     if not raw:
-        raise RtspUrlError("URL RTSP wajib diisi.")
+        raise RtspUrlError("URL stream wajib diisi.")
     if len(raw) > MAX_URL_LENGTH:
         raise RtspUrlError(f"URL terlalu panjang (maksimum {MAX_URL_LENGTH} karakter).")
     if re.search(r"\s", raw):
@@ -38,7 +51,9 @@ def split_rtsp_url(raw):
         raise RtspUrlError("Format URL tidak valid.") from None
 
     if parts.scheme.lower() not in ALLOWED_SCHEMES:
-        raise RtspUrlError("URL harus diawali rtsp:// atau rtsps://.")
+        raise RtspUrlError("URL harus diawali rtsp://, rtsps://, http:// atau https:// (untuk .m3u8).")
+    if parts.scheme.lower() in HLS_SCHEMES and not is_hls_path(parts.path):
+        raise RtspUrlError("URL http(s) harus menunjuk ke playlist HLS berakhiran .m3u8.")
 
     try:
         host = parts.hostname
