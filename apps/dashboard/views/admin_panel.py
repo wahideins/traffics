@@ -6,14 +6,15 @@ import json
 import os
 from functools import wraps
 
-from django.http import Http404, JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse, StreamingHttpResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET, require_POST
 
 from ..detection.model_tools import ModelError
-from ..services import admin_actions, app_settings, camera_admin
+from ..recording import get_recording_manager
+from ..services import admin_actions, app_settings, camera_admin, recordings_view
 from ..services.admin_access import LOGIN, OK, LoginThrottle, decide, password_matches
 
 COOKIE, SALT, SESSION_SECONDS = "ts_admin", "trafficsense-admin", 8 * 3600
@@ -71,6 +72,7 @@ def panel(request):
         "models": _models_view(store),
         "cameras": admin_actions.camera_overview(),
         "system": admin_actions.system_info(),
+        "recordings": recordings_view.overview(),
         "password_set": bool(_password()),
         "has_overrides": bool(store.overrides()),
     })
@@ -207,4 +209,44 @@ def camera_restart(request, code):
 def camera_reset_counts(request, code):
     if not admin_actions.reset_camera_counts(code):
         return _json_error("Deteksi belum berjalan untuk kamera ini.", status=409)
+    return JsonResponse({"ok": True})
+
+
+@require_GET
+@admin_only
+def recording_file(request, rec_id):
+    """Putar/unduh satu berkas rekaman; mendukung Range agar bisa digeser di pemutar browser."""
+    store = get_recording_manager().store
+    rec = store.get(rec_id)
+    if rec is None:
+        raise Http404("Rekaman tidak ditemukan")
+    try:
+        path = store.full_path(rec["path"])
+        size = path.stat().st_size
+    except (OSError, ValueError):
+        raise Http404("Berkas rekaman tidak ada") from None
+    try:
+        span = recordings_view.parse_range(request.META.get("HTTP_RANGE", ""), size)
+    except ValueError:
+        resp = HttpResponse(status=416)
+        resp["Content-Range"] = f"bytes */{size}"
+        return resp
+    start, end = span if span else (0, size - 1)
+    resp = StreamingHttpResponse(recordings_view.iter_file(path, start, end), status=206 if span else 200,
+                                 content_type="video/mp4")
+    resp["Accept-Ranges"] = "bytes"
+    resp["Content-Length"] = str(max(end - start + 1, 0))
+    if span:
+        resp["Content-Range"] = f"bytes {start}-{end}/{size}"
+    if request.GET.get("download"):
+        resp["Content-Disposition"] = f'attachment; filename="{path.name}"'
+    resp["Cache-Control"] = "private, no-store"
+    return resp
+
+
+@require_POST
+@admin_only
+def recording_delete(request, rec_id):
+    if not get_recording_manager().store.delete(rec_id):
+        return _json_error("Rekaman tidak ditemukan atau masih direkam.", status=409)
     return JsonResponse({"ok": True})

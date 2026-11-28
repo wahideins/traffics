@@ -26,6 +26,15 @@ Tes:
 python manage.py test apps.dashboard
 ```
 
+## Rekaman
+
+Selama kamera menyala (dan Perekaman = Nyala di panel Pengaturan), video disimpan per berkas
+(bawaan 5 menit, 10 fps, lebar maks 960 px) di `data/recordings/<kamera>/<tanggal>/`. Indeksnya
+(waktu, durasi, ukuran, status) ada di SQLite `data/recordings.sqlite3` (pustaka standar, tanpa migrasi).
+Dengan `ffmpeg` di PATH hasilnya H.264 dan bisa diputar di browser; tanpa ffmpeg dipakai OpenCV (mp4v,
+cukup diunduh). Bila total melebihi "Batas penyimpanan" (bawaan 20 GB), berkas tertua dihapus otomatis.
+Lihat, putar, unduh, dan hapus di Pengaturan > Rekaman. Lokasi: `TRAFFICSENSE_RECORDINGS_DIR`, `TRAFFICSENSE_RECORDINGS_DB`.
+
 ## Kamera RTSP dan HLS (.m3u8)
 
 Selain `rtsp://`, tautan `http(s)://…/playlist.m3u8` (HLS live) juga diterima di dialog Tambah kamera. Frame HLS diatur waktunya sesuai timestamp stream agar kecepatan tidak melonjak saat segmen diunduh serentak. Playlist VOD (berakhir) akan terputus lalu disambung ulang terus-menerus; pakai HLS live. Login Basic untuk HLS hanya bila server menerimanya; token di query string lebih umum.

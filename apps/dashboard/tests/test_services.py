@@ -7,7 +7,7 @@ from apps.dashboard.services.cameras import CAMERAS
 from apps.dashboard.services.registry import get_camera
 from apps.dashboard.services.constants import EVENT_FILTERS, TIME_RANGES
 from apps.dashboard.services.context import build_dashboard_context
-from apps.dashboard.services.metrics import classify_flow, vehicle_counts
+from apps.dashboard.services.metrics import classify_flow, classify_traffic, vehicle_counts
 from apps.dashboard.services.params import parse_params
 
 NOW = datetime.datetime(2026, 11, 20, 10, 10, 5, tzinfo=datetime.timezone(datetime.timedelta(hours=7)))
@@ -22,6 +22,22 @@ class ClassifyFlowTests(unittest.TestCase):
 
     def test_macet_karena_kecepatan_rendah(self):
         self.assertEqual(classify_flow(10, 30, 60), "macet")
+
+
+class ClassifyTrafficTests(unittest.TestCase):
+    def test_ramai_tapi_cepat_lancar(self):
+        self.assertEqual(classify_traffic(45, 95, 60, 0.05), "lancar")
+
+    def test_tanpa_kalibrasi_hanya_padat_bukan_macet_dari_kepadatan(self):
+        self.assertEqual(classify_traffic(None, 100, 60, None), "padat")
+        self.assertEqual(classify_traffic(None, 100, 60, 0.1), "padat")
+
+    def test_macet_butuh_kendaraan_diam(self):
+        self.assertEqual(classify_traffic(None, 60, 60, 0.8), "macet")
+        self.assertEqual(classify_traffic(5, 60, 60, 0.8), "macet")
+
+    def test_lambat_tapi_sepi_padat(self):
+        self.assertEqual(classify_traffic(8, 10, 60, 0.1), "padat")
 
 
 class ParamsTests(unittest.TestCase):

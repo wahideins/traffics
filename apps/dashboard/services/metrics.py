@@ -39,6 +39,30 @@ def classify_flow(speed, density, limit) -> str:
     return "macet"
 
 
+def classify_traffic(speed, density, limit, jam_ratio):
+    """Status arus untuk kamera nyata. Gerak kendaraan yang menentukan; kepadatan
+    saja (jalan ramai tapi lancar) tidak pernah cukup untuk Macet.
+
+    speed: km/j rata-rata atau None (belum dikalibrasi); jam_ratio: porsi kendaraan
+    yang nyaris diam (0..1) atau None bila belum cukup data.
+    """
+    if speed is not None:
+        ratio = speed / limit if limit else 1.0
+        if ratio >= 0.55:
+            return "lancar"
+        if ratio >= 0.25:
+            return "padat"
+        stuck = jam_ratio is not None and jam_ratio >= 0.5
+        return "macet" if (density >= 25 or stuck) else "padat"
+    if jam_ratio is None:
+        return "padat" if density >= DENSITY_MACET else "lancar"
+    if jam_ratio >= 0.6 and density >= 25:
+        return "macet"
+    if jam_ratio >= 0.3 or density >= DENSITY_MACET:
+        return "padat"
+    return "lancar"
+
+
 def density_level(density) -> str:
     if density < DENSITY_PADAT:
         return "lancar"

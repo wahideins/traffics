@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from ..detection.config import DetectionConfig, load_config as load_detection_env
+from ..recording.config import RecordingConfig, load_config as load_recording_env
 from ..streaming.config import StreamConfig, load_config as load_stream_env
 
 SETTINGS_VERSION = 1
@@ -37,6 +38,7 @@ class Field:
 GROUPS = {
     "detection": ("Deteksi", "Model dan ambang yang menentukan apa yang dianggap kendaraan."),
     "tracking": ("Pelacakan dan kepadatan", "Seberapa cepat kendaraan dikenali dan bagaimana kepadatan dihitung."),
+    "recording": ("Pengaturan rekaman", "Video disimpan selama kamera menyala, per berkas, dan dicatat di basis data SQLite. Perubahan memulai ulang semua kamera."),
     "stream": ("Aliran video", "Pembacaan RTSP dan tayangan ke browser. Perubahan memulai ulang semua kamera."),
 }
 
@@ -69,7 +71,7 @@ FIELDS = (
           "Kendaraan yang tak terdeteksi selama ini dibuang dari pelacakan.",
           minimum=0.3, maximum=10.0, unit="detik"),
     Field("full_occupancy", "detection", "tracking", "Luas kendaraan saat dianggap penuh", "float",
-          "Luas semua kotak kendaraan terhadap luas area deteksi pada kepadatan 100%. Kecilkan bila jalan sering tampak lancar padahal ramai.",
+          "Luas semua kotak kendaraan terhadap luas area deteksi pada kepadatan 100%. Status Macet kini ditentukan oleh gerak kendaraan; angka ini hanya memengaruhi persen kepadatan.",
           minimum=0.05, maximum=1.0, unit="%", scale=100.0, env="TRAFFICSENSE_FULL_OCCUPANCY"),
     Field("transport", "stream", "stream", "Transport RTSP", "choice",
           "TCP lebih andal; UDP lebih ringan tetapi bisa merusak gambar bila jaringan buruk.",
@@ -83,6 +85,23 @@ FIELDS = (
     Field("max_fps", "stream", "stream", "Batas fps tayangan", "float",
           "Batas kirim ke browser. Pembacaan dari kamera tetap penuh.",
           minimum=1.0, maximum=30.0, unit="fps", env="TRAFFICSENSE_STREAM_MAX_FPS"),
+)
+FIELDS += (
+    Field("record", "recording", "recording", "Perekaman", "choice",
+          "Rekam video selama kamera menyala. Untuk H.264 yang bisa diputar di browser, pasang ffmpeg (harus ada di PATH).",
+          choices=((1, "Nyala"), (0, "Mati")), env="TRAFFICSENSE_RECORD"),
+    Field("record_fps", "recording", "recording", "Frame per detik rekaman", "float",
+          "Lebih kecil = berkas lebih kecil dan CPU lebih ringan. Tidak memengaruhi deteksi.",
+          minimum=1.0, maximum=30.0, unit="fps", env="TRAFFICSENSE_RECORD_FPS"),
+    Field("record_segment_minutes", "recording", "recording", "Panjang tiap berkas", "int",
+          "Rekaman dipotong menjadi berkas sepanjang ini.", minimum=1, maximum=60, unit="menit",
+          env="TRAFFICSENSE_RECORD_SEGMENT_MINUTES"),
+    Field("record_max_width", "recording", "recording", "Lebar maksimum rekaman", "int",
+          "Frame yang lebih lebar diperkecil sebelum disimpan.", minimum=320, maximum=3840, unit="px",
+          env="TRAFFICSENSE_RECORD_MAX_WIDTH"),
+    Field("record_max_gb", "recording", "recording", "Batas penyimpanan", "float",
+          "Bila total rekaman melebihi batas ini, berkas tertua dihapus otomatis. 0 = tanpa batas.",
+          minimum=0.0, maximum=100000.0, unit="GB", env="TRAFFICSENSE_RECORD_MAX_GB"),
 )
 BY_KEY = {f.key: f for f in FIELDS}
 
@@ -207,11 +226,16 @@ class SettingsStore:
         over = self.overrides()
         return replace(config, **{k: v for k, v in over.items() if BY_KEY[k].target == "stream"})
 
+    def recording_config(self) -> RecordingConfig:
+        config = load_recording_env()
+        over = self.overrides()
+        return replace(config, **{k: v for k, v in over.items() if BY_KEY[k].target == "recording"})
+
     # --- tampilan formulir -----------------------------------------------
     def describe(self):
         """Daftar bidang untuk formulir: nilai efektif, sumber nilai, dan pilihan."""
         over = self.overrides()
-        det, stream = self.detection_config(), self.stream_config()
+        det, stream, rec = self.detection_config(), self.stream_config(), self.recording_config()
         sections = []
         for gid, (title, intro) in GROUPS.items():
             items = []
@@ -221,7 +245,7 @@ class SettingsStore:
                     choices = [("", "(ikuti TRAFFICSENSE_MODEL)")] + [(n, n) for n in self.model_names()]
                     effective = Path(det.model_path).name if det.model_path else ""
                 else:
-                    cfg = det if f.target == "detection" else stream
+                    cfg = {"detection": det, "stream": stream, "recording": rec}[f.target]
                     effective = getattr(cfg, f.key)
                     current = over.get(f.key, "")
                     choices = f.choices
@@ -266,3 +290,7 @@ def effective_detection_config():
 
 def effective_stream_config():
     return get_store().stream_config()
+
+
+def effective_recording_config():
+    return get_store().recording_config()

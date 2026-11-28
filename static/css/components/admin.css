@@ -19,3 +19,19 @@
 .admin-dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; }
 .admin-dl dt { color: var(--text-muted); }
 .admin-dl dd { margin: 0; word-break: break-all; }
+
+/* Menu hamburger dan laci navigasi */
+.admin-head__main { display: flex; align-items: center; gap: 12px; }
+.admin-burger { width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--surface); display: inline-flex; flex-direction: column; justify-content: center; align-items: center; gap: 4px; cursor: pointer; flex: none; }
+.admin-burger span { display: block; width: 18px; height: 2px; border-radius: 2px; background: var(--text-2); }
+.admin-burger:hover { background: var(--accent-soft); }
+.admin-burger:focus-visible, .admin-nav:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.admin-backdrop { position: fixed; inset: 0; background: rgba(10, 20, 38, .45); z-index: 40; }
+.admin-drawer { position: fixed; top: 0; left: 0; bottom: 0; width: min(300px, 86vw); background: var(--surface); border-right: 1px solid var(--border); z-index: 50; padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; box-shadow: 8px 0 32px rgba(10, 20, 38, .18); }
+.admin-drawer[hidden], .admin-backdrop[hidden] { display: none; }
+.admin-drawer__head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.admin-drawer__group { margin: 14px 8px 4px; font-size: .72rem; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); }
+.admin-nav { display: block; padding: 10px 12px; border-radius: 8px; color: var(--text-2); text-decoration: none; }
+.admin-nav:hover { background: var(--surface-muted); }
+.admin-nav[aria-current="page"] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+[data-panel][hidden], .admin-bar[hidden] { display: none; }

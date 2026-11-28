@@ -435,6 +435,19 @@ class CongestionTests(unittest.TestCase):
         self.assertEqual(snap["level"], "macet")
         self.assertEqual(len([e for e in snap["events"] if e["type"] == "cong"]), 1)
 
+    def test_ramai_tapi_bergerak_tetap_lancar(self):
+        a, clock = make()
+        # Banyak kendaraan memenuhi frame tetapi semuanya melaju (~3 panjang-badan/detik).
+        for i in range(int(12 * FPS)):
+            clock.t = 1_800_000_000.0 + i / FPS
+            shift = (i / FPS) * 400
+            dets = [Detection((x + shift, y, x + shift + 150, y + 110), 0.9, "mobil")
+                    for x in range(-800, W, 200) for y in range(100, 700, 120)]
+            a.process(dets, (W, H), clock.t)
+        snap = a.snapshot(clock.t)
+        self.assertEqual(snap["level"], "lancar")
+        self.assertEqual([e for e in snap["events"] if e["type"] == "cong"], [])
+
     def test_jalan_kosong_lancar(self):
         a, clock = make()
         for i in range(20):

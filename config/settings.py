@@ -7,11 +7,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # --- Keamanan -------------------------------------------------------------
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "dev-only-ganti-di-produksi")
 DEBUG = os.environ.get("DJANGO_DEBUG", "1") == "1"
-ALLOWED_HOSTS = [
-    host
-    for host in os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
-    if host
-]
+
+ALLOWED_HOSTS = ["localhost", "127.0.0.1", "gmsipcamtest.my.id", "animation-lab-test-valuable.trycloudflare.com"]
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 # --- Aplikasi -------------------------------------------------------------
 INSTALLED_APPS = [
@@ -66,3 +64,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # Panel admin: pengaturan tersimpan dan folder model (di dalam data/, tidak masuk git).
 SETTINGS_PATH = Path(os.environ.get("TRAFFICSENSE_SETTINGS", BASE_DIR / "data" / "settings.json"))
 MODELS_DIR = Path(os.environ.get("TRAFFICSENSE_MODELS_DIR", BASE_DIR / "data" / "models"))
+
+# Rekaman video: berkas di folder, indeks di SQLite (keduanya di dalam data/, tidak masuk git).
+RECORDINGS_DIR = Path(os.environ.get("TRAFFICSENSE_RECORDINGS_DIR", BASE_DIR / "data" / "recordings"))
+RECORDINGS_DB = Path(os.environ.get("TRAFFICSENSE_RECORDINGS_DB", BASE_DIR / "data" / "recordings.sqlite3"))

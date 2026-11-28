@@ -10,7 +10,7 @@ from collections import deque
 from datetime import datetime
 
 from ..services.constants import DENSITY_MACET, DENSITY_PADAT, SPEED_BINS, VEHICLE_CLASSES
-from ..services.metrics import classify_flow, density_level
+from ..services.metrics import classify_traffic, density_level
 from .calibration import Calibration, RoadModel
 from .bytetrack import ByteTracker
 
@@ -18,7 +18,9 @@ CLASS_KEYS = tuple(vc["key"] for vc in VEHICLE_CLASSES)
 CLASS_NAMES = {vc["key"]: vc["name"] for vc in VEHICLE_CLASSES}
 
 # Luas kendaraan sebagai persentase luas frame yang dianggap "penuh" (antre rapat).
-FULL_OCCUPANCY = 0.30
+FULL_OCCUPANCY = 0.45
+SLOW_BODY_SPEED = 0.3  # panjang-badan per detik di bawah ini = merayap/diam (tak butuh kalibrasi)
+MIN_TRACKS_FOR_JAM = 3
 SPEED_WINDOW = 1.5  # detik jendela untuk menghitung kecepatan
 MAX_PLAUSIBLE_KMH = 250.0
 CONGESTION_HOLD = 20.0  # detik berstatus macet sebelum dicatat sebagai kejadian
@@ -55,6 +57,8 @@ class TrafficAnalyzer:
         self._density = 0.0
         self._dir_density = {"a": 0.0, "b": 0.0}
         self._avg_live_speed = None
+        self._jam = None
+        self._dir_jam = {"a": None, "b": None}
         self._overlay = []
 
         self._date = self._today(clock())
@@ -113,6 +117,7 @@ class TrafficAnalyzer:
             self._update_zones(tracks, width, height, t)
             self._update_density(tracks, frame_area, t)
             self._update_live_speed(tracks, t)
+            self._update_jam(tracks, t)
             self._check_congestion(t, road)
             self._overlay = [
                 {
@@ -296,10 +301,7 @@ class TrafficAnalyzer:
             flow = len(self._crossings)
             speed_ready = road is not None and road.mpp is not None
             avg = self._avg_live_speed if speed_ready else None
-            if avg is not None:
-                level = classify_flow(avg, self._density, self.speed_limit)
-            else:
-                level = density_level(self._density)
+            level = classify_traffic(avg, self._density, self.speed_limit, self._jam)
 
             directions = {}
             for key in ("a", "b"):
@@ -309,7 +311,7 @@ class TrafficAnalyzer:
                 directions[key] = {
                     "speed": speed,
                     "density": dens,
-                    "level": classify_flow(speed, dens, self.speed_limit) if speed is not None else density_level(dens),
+                    "level": classify_traffic(speed, dens, self.speed_limit, self._dir_jam[key]),
                 }
 
             hist_total = sum(self._hist)
@@ -561,6 +563,32 @@ class TrafficAnalyzer:
         bucket["d"][0] += self._density
         bucket["d"][1] += 1
 
+    @staticmethod
+    def _is_crawling(tr, t):
+        """True/False bila gerak track bisa dinilai (dalam panjang-badan per detik), else None."""
+        pts = [p for p in tr.points if t - p[0] <= SPEED_WINDOW]
+        if len(pts) < 3 or pts[-1][0] - pts[0][0] < 0.8:
+            return None
+        x1, y1, x2, y2 = tr.box
+        body = math.sqrt(max((x2 - x1) * (y2 - y1), 1.0))
+        dist = math.hypot(pts[-1][1] - pts[0][1], pts[-1][2] - pts[0][2])
+        return dist / body / (pts[-1][0] - pts[0][0]) < SLOW_BODY_SPEED
+
+    def _update_jam(self, tracks, t):
+        """Porsi kendaraan yang merayap/diam, diperhalus. Tidak butuh skala meter."""
+        def ratio(group):
+            flags = [f for f in (self._is_crawling(tr, t) for tr in group) if f is not None]
+            return sum(flags) / len(flags) if len(flags) >= MIN_TRACKS_FOR_JAM else None
+
+        def smooth(old, new):
+            if new is None:
+                return None
+            return new if old is None else 0.7 * old + 0.3 * new
+
+        self._jam = smooth(self._jam, ratio(tracks))
+        for key in ("a", "b"):
+            self._dir_jam[key] = smooth(self._dir_jam[key], ratio([tr for tr in tracks if getattr(tr, "direction", None) == key]))
+
     def _update_live_speed(self, tracks, t):
         speeds = [tr.speed_kmh for tr in tracks if tr.speed_kmh is not None]
         if len(speeds) >= 2:
@@ -570,11 +598,8 @@ class TrafficAnalyzer:
         self._avg_live_speed = sum(recent) / len(recent) if len(recent) >= 3 else (speeds[0] if speeds else None)
 
     def _check_congestion(self, t, road):
-        macet = self._density >= DENSITY_MACET or (
-            self._avg_live_speed is not None and road.mpp is not None
-            and classify_flow(self._avg_live_speed, self._density, self.speed_limit) == "macet"
-            and self._density >= DENSITY_PADAT
-        )
+        speed = self._avg_live_speed if road.mpp is not None else None
+        macet = classify_traffic(speed, self._density, self.speed_limit, self._jam) == "macet"
         if macet:
             self._ok_since = None
             if self._macet_since is None:

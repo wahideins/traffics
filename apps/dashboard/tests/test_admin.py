@@ -86,7 +86,7 @@ class SettingsTests(unittest.TestCase):
         self.assertEqual(fields["conf"]["source"], "disimpan")
         self.assertEqual(fields["conf"]["value"], "0,5")
         self.assertEqual(fields["nms_iou"]["source"], "bawaan")
-        self.assertEqual(fields["full_occupancy"]["value"], "30")  # tampil dalam persen
+        self.assertEqual(fields["full_occupancy"]["value"], "45")  # tampil dalam persen
         self.assertTrue(any(c["selected"] for c in fields["provider"]["choices"]))
 
 

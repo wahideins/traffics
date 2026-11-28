@@ -31,7 +31,7 @@ def load_config(base_dir=None) -> DetectionConfig:
     base = Path(base_dir) if base_dir else Path.cwd()
     return DetectionConfig(
         model_path=os.environ.get("TRAFFICSENSE_MODEL", ""),
-        full_occupancy=_env("TRAFFICSENSE_FULL_OCCUPANCY", 0.30, float),
+        full_occupancy=_env("TRAFFICSENSE_FULL_OCCUPANCY", 0.45, float),
         provider=os.environ.get("TRAFFICSENSE_PROVIDER", "auto").lower(),
         conf=_env("TRAFFICSENSE_DETECT_CONF", 0.35, float),
         low_conf=_env("TRAFFICSENSE_TRACK_LOW_CONF", 0.1, float),

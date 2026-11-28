@@ -7,6 +7,7 @@ import logging
 
 from .detection.manager import get_detection_manager, reset_detection_manager
 from .services.registry import list_cameras
+from .recording import get_recording_manager, reset_recording_manager
 from .streaming import get_manager
 from .streaming.manager import reset_manager
 
@@ -16,14 +17,30 @@ LOG = logging.getLogger(__name__)
 def ensure_camera(camera):
     """Pastikan pembaca stream (dan deteksi bila aktif) berjalan. Kembalikan RtspReader."""
     pipeline = get_detection_manager().ensure(camera)
-    keep_alive = pipeline is not None and pipeline.active
+    recording = get_recording_manager()
+    recorder = recording.recorder(camera.id) if camera.source == "rtsp" else None
+    keep_alive = (pipeline is not None and pipeline.active) or recorder is not None
     return get_manager().ensure(
         camera.id,
         camera.source_url,
-        on_frame=pipeline.submit if pipeline else None,
+        on_frame=_fan_out(pipeline.submit if pipeline else None, recorder.submit if recorder else None),
         annotate=pipeline.annotate if pipeline else None,
         keep_alive=keep_alive,
     )
+
+
+def _fan_out(*callbacks):
+    callbacks = [cb for cb in callbacks if cb is not None]
+    if not callbacks:
+        return None
+    if len(callbacks) == 1:
+        return callbacks[0]
+
+    def call(frame):
+        for cb in callbacks:
+            cb(frame)
+
+    return call
 
 
 def snapshot_jpeg(camera, *, clean=False, timeout=10.0):
@@ -40,13 +57,14 @@ def snapshot_jpeg(camera, *, clean=False, timeout=10.0):
 
 def stop_camera(code, *, delete_state=False):
     get_manager().stop(code)
+    get_recording_manager().stop(code)
     get_detection_manager().remove(code, delete_state=delete_state)
 
 
 def start_all():
     """Nyalakan semua kamera RTSP yang tersimpan bila deteksi aktif (agar penghitungan 24 jam tak bergantung penonton)."""
     detection = get_detection_manager()
-    if not (detection.enabled and detection.config.autostart):
+    if not ((detection.enabled and detection.config.autostart) or get_recording_manager().enabled):
         return []
     started = []
     for camera in list_cameras():
@@ -66,4 +84,5 @@ def restart_all():
     """
     reset_detection_manager()
     reset_manager()
+    reset_recording_manager()
     return start_all()

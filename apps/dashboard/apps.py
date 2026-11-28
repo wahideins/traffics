@@ -13,6 +13,9 @@ class DashboardConfig(AppConfig):
 
         registry.configure(settings.CAMERA_STORE_PATH)
         app_settings.configure(settings.SETTINGS_PATH, settings.MODELS_DIR)
+        from .recording import manager as recording_manager
+
+        recording_manager.configure(settings.RECORDINGS_DB, settings.RECORDINGS_DIR)
 
         # Kamera berdeteksi dihidupkan sejak server berjalan agar penghitungan tak bergantung penonton.
         # `runserver` memakai proses induk + proses anak (reloader): hanya anak (RUN_MAIN) yang menyalakan.

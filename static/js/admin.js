@@ -3,7 +3,10 @@ import { postForm } from "./api.js";
 import { initCameraAdmin } from "./modules/camera-admin.js";
 import { qs, qsa } from "./utils/dom.js";
 
+import { initAdminMenu } from "./modules/admin-menu.js";
+
 const root = qs("[data-admin]");
+const menu = initAdminMenu(root);
 const statusEl = qs("[data-admin-status]");
 
 function say(text, kind = "info") {
@@ -47,6 +50,9 @@ form.addEventListener("submit", async (event) => {
     const el = qs(`[data-error-for="${key}"]`, form);
     if (el) el.textContent = text;
   });
+  const firstKey = Object.keys(errors)[0];
+  const bad = firstKey && qs(`[data-error-for="${firstKey}"]`, form)?.closest("[data-panel]");
+  if (bad) menu.show(bad.id);
   say(Object.keys(errors).length ? "Ada isian yang perlu diperbaiki." : message(res), "error");
 });
 
